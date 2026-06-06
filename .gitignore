@@ -111,6 +111,9 @@ temp/
 logs/
 *.log
 
+# Data directory (Docker volumes)
+data/
+
 # Dependency directories (alternative locations)
 bower_components/
 jspm_packages/

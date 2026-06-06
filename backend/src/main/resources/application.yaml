@@ -1,0 +1,67 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  threads.virtual.enabled: true
+  application.name: askbox
+  profiles.default: dev
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:askbox}
+    username: ${DB_USER:askbox}
+    password: ${DB_PASSWORD:askbox}
+
+  data.redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  jackson:
+    time-zone: UTC
+    default-property-inclusion: non_null
+    serialization.write-dates-as-timestamps: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      insert-strategy: not_null
+      update-strategy: not_null
+      where-strategy: not_null
+
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  timeout: -1
+  active-timeout: 604800
+  is-concurrent: false
+  is-share: false
+  is-read-header: true
+  is-read-cookie: false
+  is-read-body: false
+
+springdoc:
+  swagger-ui.path: /swagger-ui.html
+  api-docs.path: /v3/api-docs
+
+knife4j:
+  enable: true
+  setting.language: zh_cn
+
+server.port: ${SERVER_PORT:8080}
+
+askbox.rate-limit:
+  key-prefix: askbox:ratelimit
+  ip.capacity: 100
+  ip.refill-tokens: 100
+  ip.time-window-seconds: 60
+  user.capacity: 50
+  user.refill-tokens: 50
+  user.time-window-seconds: 60
+  custom.capacity: 60
+  custom.refill-tokens: 60
+  custom.time-window-seconds: 60

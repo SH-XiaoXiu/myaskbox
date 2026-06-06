@@ -1,0 +1,9 @@
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level.cn.xiuxius.askbox: DEBUG
+
+sa-token:
+  is-log: true
