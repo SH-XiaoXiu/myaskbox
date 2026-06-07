@@ -19,5 +19,14 @@ services:
       - "${REDIS_PORT:-6380}:6379"
     volumes:
       - ./data/redis:/data
-    command: redis-server --save 60 1 --loglevel warning
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server --save 60 1 --loglevel warning --requirepass "$$REDIS_PASSWORD"
+        fi
+        exec redis-server --save 60 1 --loglevel warning
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     restart: unless-stopped

@@ -42,7 +42,10 @@ DB_USER=askbox
 DB_PASSWORD=askbox
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_PASSWORD=
 ```
+
+`REDIS_PASSWORD` 留空表示 Redis 无密码；填写非空值时，Docker Redis 会启用 `requirepass`，后端也会使用同一个密码连接。
 
 如果修改了 `.env` 里的端口，需要保证后端运行时也能读取同样的环境变量。Spring Boot 当前读取的是运行目录下的 `.env` 或系统环境变量。
 
@@ -121,4 +124,3 @@ docker compose down
 docker compose logs -f postgres
 docker compose logs -f redis
 ```
-
