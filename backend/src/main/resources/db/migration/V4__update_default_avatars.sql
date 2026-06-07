@@ -1,19 +1,14 @@
 -- ============================================================
--- V2: 匿名头像表 + 10 个预设圆形抽象头像
+-- V4: 更新已初始化环境的默认头像为圆形抽象头像
 -- ============================================================
 
-CREATE TABLE avatars (
-    id            BIGSERIAL PRIMARY KEY,
-    name          VARCHAR(50) NOT NULL,
-    icon_base64   TEXT NOT NULL,
-    bg            VARCHAR(20) NOT NULL,
-    sort_order    INT NOT NULL DEFAULT 0,
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-INSERT INTO avatars (id, name, icon_base64, bg, sort_order) VALUES
+UPDATE avatars a
+SET name = v.name,
+    icon_base64 = v.icon_base64,
+    bg = v.bg,
+    sort_order = v.sort_order,
+    updated_at = NOW()
+FROM (VALUES
 (1, '匿名 01', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#e94f64"/><circle cx="34" cy="34" r="19" fill="#fff" opacity=".35"/><circle cx="62" cy="58" r="13" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#e94f64', 1),
 (2, '匿名 02', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#2f80ed"/><circle cx="41" cy="35" r="18" fill="#fff" opacity=".34"/><circle cx="56" cy="58" r="15" fill="#0f172a" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#2f80ed', 2),
 (3, '匿名 03', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#17a398"/><circle cx="52" cy="43" r="21" fill="#fff" opacity=".32"/><circle cx="45" cy="61" r="12" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#17a398', 3),
@@ -23,5 +18,6 @@ INSERT INTO avatars (id, name, icon_base64, bg, sort_order) VALUES
 (7, '匿名 07', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#ef476f"/><circle cx="51" cy="34" r="18" fill="#fff" opacity=".34"/><circle cx="60" cy="55" r="15" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#ef476f', 7),
 (8, '匿名 08', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#4d908e"/><circle cx="60" cy="42" r="20" fill="#fff" opacity=".32"/><circle cx="52" cy="58" r="16" fill="#111827" opacity=".11"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#4d908e', 8),
 (9, '匿名 09', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#f77f00"/><circle cx="36" cy="48" r="22" fill="#fff" opacity=".3"/><circle cx="51" cy="62" r="13" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#f77f00', 9),
-(10, '匿名 10', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#6c63ff"/><circle cx="42" cy="34" r="18" fill="#fff" opacity=".34"/><circle cx="61" cy="58" r="15" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#6c63ff', 10);
-SELECT setval('avatars_id_seq', 10);
+(10, '匿名 10', 'data:image/svg+xml;base64,' || encode(convert_to($$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="48" cy="48" r="46" fill="#6c63ff"/><circle cx="42" cy="34" r="18" fill="#fff" opacity=".34"/><circle cx="61" cy="58" r="15" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>$$, 'UTF8'), 'base64'), '#6c63ff', 10)
+) AS v(id, name, icon_base64, bg, sort_order)
+WHERE a.id = v.id;
