@@ -60,23 +60,8 @@ let glassRefreshFrame = 0;
 
 const panelConfig = {
   blurAmount: 0.25,
-  refraction: 0.69,
-  chromAberration: 0.05,
-  edgeHighlight: 0.05,
-  specular: 0,
-  fresnel: 1,
-  distortion: 0,
   cornerRadius: 44,
-  zRadius: 44,
-  opacity: 1,
-  saturation: 0,
-  tintStrength: 0,
-  brightness: 0,
-  shadowOpacity: 0.3,
-  shadowSpread: 10,
-  shadowOffsetY: 0,
-  floating: false,
-  bevelMode: 0,
+  floating: true,
 };
 
 function configJson(config) {
@@ -245,6 +230,8 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: cover;
   object-position: center;
+  filter: saturate(1.12) brightness(1.08) contrast(1.04);
+  transform: scale(1.02);
   pointer-events: none;
   user-select: none;
 }
@@ -320,10 +307,7 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03)),
-    rgba(8, 10, 18, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   pointer-events: none;
 }
 
@@ -536,7 +520,7 @@ onBeforeUnmount(() => {
 @media (max-width: 560px) {
   .auth-error-page {
     padding: 84px 18px 24px;
-    place-items: end center;
+    place-items: center;
   }
 
   .brand-strip {
