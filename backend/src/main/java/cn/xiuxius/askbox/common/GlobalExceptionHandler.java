@@ -13,6 +13,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
@@ -88,6 +90,18 @@ public class GlobalExceptionHandler {
         log.warn("Method not supported: {}", ex.getMethod());
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(R.fail(ErrorCodes.VALIDATION_ERROR.code(), "请求方法不允许"));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<R<Void>> handleNoResourceFound(NoResourceFoundException ex) {
+        log.warn("Resource not found: method={} path={}", ex.getHttpMethod(), ex.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(R.fail(ErrorCodes.RESOURCE_NOT_FOUND));
+    }
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<R<Void>> handleNoHandlerFound(NoHandlerFoundException ex) {
+        log.warn("Handler not found: method={} path={}", ex.getHttpMethod(), ex.getRequestURL());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(R.fail(ErrorCodes.RESOURCE_NOT_FOUND));
     }
 
     @ExceptionHandler(NotLoginException.class)
