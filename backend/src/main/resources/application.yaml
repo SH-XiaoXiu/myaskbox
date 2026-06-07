@@ -37,9 +37,12 @@ sa-token:
   token-name: Authorization
   token-prefix: Bearer
   timeout: -1
-  active-timeout: 604800
-  is-concurrent: false
+  active-timeout: 1296000
+  auto-renew: true
+  is-concurrent: true
   is-share: false
+  max-login-count: 5
+  overflow-logout-mode: KICKOUT
   is-read-header: true
   is-read-cookie: false
   is-read-body: false

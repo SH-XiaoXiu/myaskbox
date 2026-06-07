@@ -4,10 +4,12 @@ import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import cn.xiuxius.askbox.auth.request.ChangePasswordRequest;
 import cn.xiuxius.askbox.auth.request.LoginRequest;
 import cn.xiuxius.askbox.auth.service.AuthService;
 import cn.xiuxius.askbox.auth.view.LoginView;
@@ -51,6 +53,14 @@ public class AuthController {
     @Operation(summary = "退出登录", description = "注销当前用户的 Sa-Token 会话。")
     public R<Void> logout() {
         authService.logout();
+        return R.ok();
+    }
+
+    @PutMapping("/password")
+    @Operation(summary = "修改当前用户密码", description = "需要确认当前密码。修改成功后注销当前会话，需要重新登录。")
+    public R<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(
+                request.getCurrentPassword(), request.getNewPassword(), request.getConfirmPassword());
         return R.ok();
     }
 }

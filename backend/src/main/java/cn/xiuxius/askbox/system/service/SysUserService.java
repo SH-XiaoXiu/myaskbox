@@ -30,6 +30,9 @@ public interface SysUserService {
     /** 更新用户基本信息。 */
     void updateUser(Long id, String displayName, String email);
 
+    /** 修改当前用户密码，需验证当前密码。 */
+    void changePassword(Long userId, String currentPassword, String newPassword, String confirmPassword);
+
     /** 禁用用户。 */
     void disableUser(Long id);
 

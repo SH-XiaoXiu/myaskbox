@@ -1015,9 +1015,14 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  max-width: var(--stage-width);
   color: rgba(255, 255, 255, 0.92);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
   pointer-events: none;
+}
+
+.brand-strip > span:last-child {
+  min-width: 0;
 }
 
 .brand-mark {
@@ -1041,18 +1046,25 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
   font-style: normal;
   line-height: 1.18;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand-strip strong {
   font-size: 17px;
   font-weight: 750;
+  white-space: nowrap;
 }
 
 .brand-strip em {
+  display: -webkit-box;
   margin-top: 3px;
   color: rgba(255, 255, 255, 0.64);
   font-size: 12px;
   font-weight: 520;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .liquid-glass {

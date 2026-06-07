@@ -9,4 +9,6 @@ public interface AuthService {
     MeView current();
 
     void logout();
+
+    void changePassword(String currentPassword, String newPassword, String confirmPassword);
 }

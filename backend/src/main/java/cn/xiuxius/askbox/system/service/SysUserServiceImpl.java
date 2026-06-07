@@ -101,6 +101,24 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Override
     @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword, String confirmPassword) {
+        SysUserEntity user = getById(userId);
+        if (!BCrypt.checkpw(currentPassword, user.getPasswordHash())) {
+            throw new BizException(ErrorCodes.BAD_CREDENTIALS, "当前密码不正确");
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "两次输入的新密码不一致");
+        }
+        if (BCrypt.checkpw(newPassword, user.getPasswordHash())) {
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "新密码不能与当前密码相同");
+        }
+        user.setPasswordHash(BCrypt.hashpw(newPassword, BCrypt.gensalt()));
+        sysUserRepository.update(user);
+        log.info("User {} changed password", userId);
+    }
+
+    @Override
+    @Transactional
     public void disableUser(Long id) {
         ensureNotLastAdmin(id);
         SysUserEntity user = getById(id);

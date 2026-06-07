@@ -62,6 +62,14 @@ public class AuthServiceImpl implements AuthService {
         StpUtil.logout();
     }
 
+    @Override
+    @Transactional
+    public void changePassword(String currentPassword, String newPassword, String confirmPassword) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        sysUserService.changePassword(userId, currentPassword, newPassword, confirmPassword);
+        StpUtil.logout();
+    }
+
     private CurrentUser currentUser() {
         CurrentUser current = (CurrentUser) StpUtil.getSession().get(CURRENT_USER_SESSION_KEY);
         if (current != null) {

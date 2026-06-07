@@ -3,6 +3,7 @@ package cn.xiuxius.askbox.boxuser.service;
 import cn.xiuxius.askbox.boxuser.entity.BoxUserEntity;
 import cn.xiuxius.askbox.boxuser.view.BoxProfileView;
 import cn.xiuxius.askbox.boxuser.view.BoxView;
+import cn.xiuxius.askbox.boxuser.view.PublicBoxProfileView;
 import cn.xiuxius.askbox.common.PageResult;
 
 public interface BoxUserService {
@@ -17,6 +18,8 @@ public interface BoxUserService {
     BoxProfileView getProfileByUserId(Long userId);
 
     BoxProfileView getProfileById(Long id);
+
+    PublicBoxProfileView getPublicProfileBySlug(String slug);
 
     /** 管理端 Box 列表视图（含 username + questionCount）。 */
     PageResult<BoxView> listBoxViews(long page, long pageSize, String keyword);

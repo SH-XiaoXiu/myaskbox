@@ -11,6 +11,7 @@ import cn.xiuxius.askbox.boxuser.entity.BoxUserEntity;
 import cn.xiuxius.askbox.boxuser.repository.BoxUserRepository;
 import cn.xiuxius.askbox.boxuser.view.BoxProfileView;
 import cn.xiuxius.askbox.boxuser.view.BoxView;
+import cn.xiuxius.askbox.boxuser.view.PublicBoxProfileView;
 import cn.xiuxius.askbox.common.BizException;
 import cn.xiuxius.askbox.common.ErrorCodes;
 import cn.xiuxius.askbox.common.PageResult;
@@ -65,6 +66,11 @@ public class BoxUserServiceImpl implements BoxUserService {
     @Override
     public BoxProfileView getProfileById(Long id) {
         return BoxUserAssembler.toProfileView(getById(id));
+    }
+
+    @Override
+    public PublicBoxProfileView getPublicProfileBySlug(String slug) {
+        return BoxUserAssembler.toPublicProfileView(getBySlug(slug));
     }
 
     @Override

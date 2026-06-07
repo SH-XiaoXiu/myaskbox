@@ -30,6 +30,12 @@ const routes = [
     meta: { requiresAuth: true, roles: ['BOX_OWNER'] },
   },
   {
+    path: '/password',
+    name: 'password',
+    component: () => import('../components/ChangePasswordPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/admin',
     component: () => import('../components/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, roles: ['ADMIN'] },
