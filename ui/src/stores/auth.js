@@ -14,7 +14,7 @@ export const useAuthStore = defineStore('auth', {
     landingPath: (state) => {
       if (state.user?.roles?.includes('ADMIN')) return '/admin'
       if (state.user?.roles?.includes('BOX_OWNER')) return '/home'
-      return '/login'
+      return '/forbidden'
     },
   },
 

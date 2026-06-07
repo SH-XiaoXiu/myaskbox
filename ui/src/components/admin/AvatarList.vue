@@ -6,21 +6,48 @@ import { listAvatars, createAvatar, updateAvatar, deleteAvatar } from '../../api
 const loading = ref(true)
 const error = ref('')
 const avatars = ref([])
+const currentPage = ref(1)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const pageSize = 20
 
 const colorPresets = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#3b82f6', '#14b8a6', '#f97316', '#84cc16']
 
-// 默认 SVG 头像 base64 数据（简单圆形）
-const DEFAULT_SVG = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="35" r="20" fill="white" opacity="0.8"/><ellipse cx="50" cy="80" rx="35" ry="25" fill="white" opacity="0.8"/></svg>')
+// 默认 SVG 头像 base64 数据（圆形抽象图案）
+const DEFAULT_SVG = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><circle cx="34" cy="38" r="20" fill="#fff" opacity=".34"/><circle cx="60" cy="58" r="14" fill="#111827" opacity=".12"/><circle cx="48" cy="48" r="45" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2"/></svg>')
 
-onMounted(async () => {
+onMounted(() => loadAvatars(true))
+
+async function loadAvatars(reset = true) {
+  if (!reset && (loading.value || loadingMore.value || !hasMore.value)) return
+  if (reset) loading.value = true
+  else loadingMore.value = true
+  error.value = ''
+  const nextPage = reset ? 1 : currentPage.value + 1
   try {
-    avatars.value = await listAvatars()
+    const page = await listAvatars(nextPage, pageSize)
+    const records = page.records || []
+    if (reset) avatars.value = records
+    else avatars.value.push(...records)
+    currentPage.value = Number(page.page || nextPage)
+    hasMore.value = currentPage.value < Number(page.totalPages || 0)
   } catch (err) {
     error.value = err.message || '加载失败'
   } finally {
-    loading.value = false
+    if (reset) loading.value = false
+    else loadingMore.value = false
   }
-})
+}
+
+async function loadMoreAvatars() {
+  await loadAvatars(false)
+}
+
+function handleScroll(event) {
+  const el = event.currentTarget
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (distance < 160) loadMoreAvatars()
+}
 
 const showFormSheet = ref(false)
 const formTitle = ref('')
@@ -83,7 +110,7 @@ async function handleDelete(avatar) {
 
 <template>
   <div class="page">
-    <div class="page-scroll">
+    <div class="page-scroll" @scroll="handleScroll">
       <van-loading v-if="loading" class="loading-center" size="24" />
       <p v-else-if="error" class="error-msg">{{ error }}</p>
       <van-grid v-else :column-num="3" :gutter="12" :border="false">
@@ -98,6 +125,10 @@ async function handleDelete(avatar) {
           </div>
         </van-grid-item>
       </van-grid>
+      <div v-if="!loading && !error && avatars.length === 0" class="empty-hint">暂无头像</div>
+      <div v-if="!loading && !error && avatars.length > 0 && (loadingMore || hasMore)" class="load-more-hint">
+        {{ loadingMore ? '加载中' : '继续下滑加载更多' }}
+      </div>
     </div>
 
     <div class="page-bottom">
@@ -142,6 +173,8 @@ async function handleDelete(avatar) {
 .avatar-char { font-size: 22px; font-weight: 700; color: #fff; line-height: 1; }
 .avatar-name { font-size: 12px; color: #323233; line-height: 1.2; }
 .avatar-order { font-size: 10px; color: #c8c9cc; }
+.empty-hint { text-align: center; padding: 32px 0; color: #969799; font-size: 14px; }
+.load-more-hint { text-align: center; padding: 14px 0 18px; color: #969799; font-size: 12px; }
 .loading-center { display: flex; justify-content: center; padding: 24px 0; }
 .error-msg { text-align: center; color: #ee0a24; padding: 24px 0; font-size: 14px; }
 .sheet-form { padding: 0 0 16px; }

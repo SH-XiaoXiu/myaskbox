@@ -13,6 +13,17 @@ const routes = [
     component: () => import('../components/LoginPage.vue'),
   },
   {
+    path: '/unauthorized',
+    name: 'unauthorized',
+    component: () => import('../components/UnauthorizedPage.vue'),
+  },
+  {
+    path: '/forbidden',
+    name: 'forbidden',
+    component: () => import('../components/ForbiddenPage.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/home',
     name: 'home',
     component: () => import('../components/AskBoxOwnerPage.vue'),
@@ -61,6 +72,11 @@ const routes = [
     name: 'ask',
     component: () => import('../components/AskBoxLiquidPage.vue'),
   },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('../components/NotFoundPage.vue'),
+  },
 ]
 
 const router = createRouter({
@@ -93,7 +109,10 @@ router.beforeEach(async (to, from) => {
 
   const roles = to.meta.roles || []
   if (roles.length && !auth.hasAnyRole(roles)) {
-    return auth.isLoggedIn ? auth.landingPath : '/login'
+    if (!auth.isLoggedIn) {
+      return { path: '/login', query: { redirect: to.fullPath } }
+    }
+    return '/forbidden'
   }
 
   // 已登录用户不要停留在 /login → 跳转对应首页

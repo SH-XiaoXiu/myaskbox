@@ -3,6 +3,7 @@ import { animate } from "motion";
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { pageBackground } from "../assets/background";
 import { useAuthStore } from "../stores/auth";
 
 const router = useRouter();
@@ -208,13 +209,29 @@ async function handleSubmit() {
     // 短暂展示 success 状态后跳转
     await new Promise((resolve) => setTimeout(resolve, 600))
     const redirect = router.currentRoute.value.query.redirect
-    router.push(typeof redirect === 'string' ? redirect : authStore.landingPath)
+    router.push(resolveLoginTarget(redirect))
   } catch (err) {
     error.value = err.message || '用户名或密码错误'
     animateErrorShake()
   } finally {
     loading.value = false
   }
+}
+
+function resolveLoginTarget(redirect) {
+  if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
+    return authStore.landingPath
+  }
+  const target = router.resolve(redirect)
+  const excludedRouteNames = ['login', 'unauthorized', 'forbidden', 'not-found']
+  if (target.path === '/' || excludedRouteNames.includes(target.name)) {
+    return authStore.landingPath
+  }
+  const roles = target.meta.roles || []
+  if (roles.length && !authStore.hasAnyRole(roles)) {
+    return authStore.landingPath
+  }
+  return redirect
 }
 
 function togglePassword() {
@@ -249,7 +266,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="page-bg"
-      src="/bg.png"
+      :src="pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"
@@ -594,10 +611,12 @@ onBeforeUnmount(() => {
 .field-input:-webkit-autofill,
 .field-input:-webkit-autofill:hover,
 .field-input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 30px rgba(0, 0, 0, 0.28) inset;
+  box-shadow: 0 0 0 1000px transparent inset;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset;
+  background-clip: text;
   -webkit-text-fill-color: rgba(255, 255, 255, 0.92);
   caret-color: rgba(255, 255, 255, 0.92);
-  transition: background-color 5000s ease-in-out 0s;
+  transition: background-color 999999s ease-in-out 0s;
 }
 
 .field-toggle {

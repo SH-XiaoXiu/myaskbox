@@ -10,16 +10,19 @@ const users = ref([])
 const keyword = ref('')
 const currentPage = ref(1)
 const hasMore = ref(false)
+const loadingMore = ref(false)
+const pageSize = 20
 
 const availableRoles = ref([])
 
 onMounted(async () => {
   try {
     const [userPage, roles] = await Promise.all([
-      listUsers(1, 20),
+      listUsers(1, pageSize),
       listRoles(),
     ])
     users.value = userPage.records
+    currentPage.value = userPage.page
     hasMore.value = userPage.page < userPage.totalPages
     availableRoles.value = roles.map(r => ({ code: r.code, name: r.name }))
   } catch (err) {
@@ -32,15 +35,37 @@ onMounted(async () => {
 async function doSearch() {
   loading.value = true
   try {
-    const userPage = await listUsers(1, 20, keyword.value)
+    const userPage = await listUsers(1, pageSize, keyword.value)
     users.value = userPage.records
     hasMore.value = userPage.page < userPage.totalPages
-    currentPage.value = 1
+    currentPage.value = userPage.page
   } catch (err) {
     error.value = err.message || '搜索失败'
   } finally {
     loading.value = false
   }
+}
+
+async function loadMoreUsers() {
+  if (loading.value || loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const nextPage = currentPage.value + 1
+    const userPage = await listUsers(nextPage, pageSize, keyword.value)
+    users.value.push(...userPage.records)
+    currentPage.value = userPage.page
+    hasMore.value = userPage.page < userPage.totalPages
+  } catch (err) {
+    error.value = err.message || '加载失败'
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function handleScroll(event) {
+  const el = event.currentTarget
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (distance < 160) loadMoreUsers()
 }
 
 // ========== ActionSheet: 新增/编辑 ==========
@@ -156,7 +181,7 @@ function openAction(user) {
       <van-search v-model="keyword" placeholder="搜索用户名、显示名、邮箱" shape="round" @search="doSearch" />
     </div>
 
-    <div class="page-scroll">
+    <div class="page-scroll" @scroll="handleScroll">
       <van-loading v-if="loading" class="loading-center" size="24" />
       <p v-else-if="error" class="error-msg">{{ error }}</p>
       <van-cell-group v-else inset>
@@ -180,6 +205,9 @@ function openAction(user) {
         </van-swipe-cell>
       </van-cell-group>
       <div v-if="!loading && !error && users.length === 0" class="empty-hint">暂无匹配用户</div>
+      <div v-if="!loading && !error && users.length > 0 && (loadingMore || hasMore)" class="load-more-hint">
+        {{ loadingMore ? '加载中' : '继续下滑加载更多' }}
+      </div>
     </div>
 
     <div class="page-bottom">
@@ -230,6 +258,7 @@ function openAction(user) {
 .page-bottom { flex-shrink: 0; padding: 8px 16px 16px; }
 .cell-title { display: flex; align-items: center; gap: 6px; }
 .empty-hint { text-align: center; padding: 32px 0; color: #969799; font-size: 14px; }
+.load-more-hint { text-align: center; padding: 14px 0 18px; color: #969799; font-size: 12px; }
 .loading-center { display: flex; justify-content: center; padding: 24px 0; }
 .error-msg { text-align: center; color: #ee0a24; padding: 24px 0; font-size: 14px; }
 .sheet-form { padding: 0 0 16px; }

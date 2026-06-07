@@ -19,6 +19,7 @@ setUnauthorizedHandler(() => {
   const auth = useAuthStore();
   auth.clearSession();
   const current = router.currentRoute.value.fullPath;
+  if (router.currentRoute.value.path === "/login") return;
   router.replace({ path: "/login", query: { redirect: current } });
 });
 

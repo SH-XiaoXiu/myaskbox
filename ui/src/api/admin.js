@@ -59,7 +59,8 @@ export const deleteAnswer = (id) => api.delete(`/admin/answers/${id}`)
 // ==================== 头像管理 ====================
 
 /** GET /api/admin/avatars */
-export const listAvatars = () => api.get('/admin/avatars')
+export const listAvatars = (page = 1, pageSize = 20) =>
+  api.get('/admin/avatars', { params: { page, pageSize } })
 
 /** POST /api/admin/avatars */
 export const createAvatar = (data) => api.post('/admin/avatars', data)

@@ -1,12 +1,18 @@
 <script setup>
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import { pageBackground } from "../assets/background";
+import { useAuthStore } from "../stores/auth";
 import { formatTime } from "../utils";
 import {
   getBoxProfile, updateBoxProfile,
   getPendingQuestions, getHistoryQuestions,
   answerQuestion, dismissQuestion, deleteQuestion,
 } from "../api/owner";
+
+const router = useRouter();
+const auth = useAuthStore();
 
 const boxProfile = ref({ displayName: "", slug: "", description: "" });
 const pendingQuestions = ref([]);
@@ -211,6 +217,11 @@ function handleResize() {
   scheduleGlassRefresh(rootRef.value);
 }
 
+async function handleLogout() {
+  await auth.logout();
+  router.replace("/login");
+}
+
 async function waitForBackgroundImage() {
   const image = bgRef.value;
   if (!image || image.complete) return;
@@ -274,6 +285,35 @@ function selectQuestion(question) {
   answerText.value = activeTab.value === "pending" ? "" : question.answer ?? "";
   answerError.value = false;
   nextTick(() => answerRef.value?.focus?.({ preventScroll: true }));
+}
+
+function loadActivePage() {
+  if (activeTab.value === "pending") {
+    loadPending(false);
+    return;
+  }
+  if (activeTab.value === "published") {
+    loadHistory("PUBLISHED", false);
+    return;
+  }
+  if (activeTab.value === "dismissed") {
+    loadHistory("DISMISSED", false);
+  }
+}
+
+function currentPageState() {
+  if (activeTab.value === "pending") return pageState.value.pending;
+  if (activeTab.value === "published") return pageState.value.published;
+  if (activeTab.value === "dismissed") return pageState.value.dismissed;
+  return null;
+}
+
+function handleListScroll(event) {
+  const state = currentPageState();
+  if (!state || state.loading || !state.hasMore) return;
+  const el = event.currentTarget;
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+  if (distance < 180) loadActivePage();
 }
 
 function closeDrawer() {
@@ -375,7 +415,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="owner-bg"
-      src="/bg.png"
+      :src="pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"
@@ -404,6 +444,10 @@ onBeforeUnmount(() => {
           <i class="ri-external-link-line" aria-hidden="true"></i>
           <span>公开页</span>
         </a>
+        <button class="quiet-button" type="button" @click="handleLogout">
+          <i class="ri-logout-box-r-line" aria-hidden="true"></i>
+          <span>退出</span>
+        </button>
       </div>
     </header>
 
@@ -442,7 +486,7 @@ onBeforeUnmount(() => {
           </article>
         </div>
 
-        <section v-if="activeTab !== 'settings'" class="owner-list" :aria-label="activeTabMeta?.label">
+        <section v-if="activeTab !== 'settings'" class="owner-list" :aria-label="activeTabMeta?.label" @scroll="handleListScroll">
           <header class="list-head">
             <span>
               <i :class="activeTabMeta?.icon" aria-hidden="true"></i>
@@ -467,7 +511,6 @@ onBeforeUnmount(() => {
                 <span class="mini-avatar" :style="{ background: question.profile?.bg }">
                   <img :src="question.profile?.iconBase64" class="owner-avatar-img" alt="" />
                 </span>
-                <span>{{ question.profile?.name }}</span>
               </span>
               <time>{{ questionTime(question) }}</time>
             </header>
@@ -478,6 +521,10 @@ onBeforeUnmount(() => {
           <div v-if="displayedQuestions.length === 0" class="owner-empty">
             <i class="ri-checkbox-circle-line" aria-hidden="true"></i>
             <span>这里暂时没有内容</span>
+          </div>
+
+          <div v-else-if="currentPageState()?.loading || currentPageState()?.hasMore" class="owner-load-state" aria-live="polite">
+            {{ currentPageState()?.loading ? "加载中" : "继续下滑加载更多" }}
           </div>
         </section>
 
@@ -528,7 +575,6 @@ onBeforeUnmount(() => {
             <span class="mini-avatar" :style="{ background: selectedQuestion.profile?.bg }">
               <img :src="selectedQuestion.profile?.iconBase64" class="owner-avatar-img" alt="" />
             </span>
-            <span>{{ selectedQuestion.profile?.name }}</span>
           </span>
           <button class="drawer-close" type="button" aria-label="关闭详情" @click="closeDrawer">
             <i class="ri-close-line" aria-hidden="true"></i>
@@ -673,6 +719,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 50%;
 }
 
 .owner-identity strong,
@@ -951,6 +998,14 @@ onBeforeUnmount(() => {
 
 .owner-empty i {
   font-size: 30px;
+}
+
+.owner-load-state {
+  padding: 4px 0 30px;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
+  font-weight: 560;
+  text-align: center;
 }
 
 .settings-panel {

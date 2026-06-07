@@ -41,10 +41,16 @@ async function handleLogout() {
         </a>
       </template>
       <template #right>
-        <span class="nav-user" @click="handleLogout">
-          <i class="ri-user-3-line"></i>
-          <span class="nav-username">{{ auth.user?.username || '' }}</span>
-        </span>
+        <div class="nav-actions">
+          <span class="nav-user">
+            <i class="ri-user-3-line"></i>
+            <span class="nav-username">{{ auth.user?.username || '' }}</span>
+          </span>
+          <button class="nav-logout" type="button" @click="handleLogout">
+            <i class="ri-logout-box-r-line"></i>
+            <span>退出</span>
+          </button>
+        </div>
       </template>
     </van-nav-bar>
 
@@ -105,18 +111,38 @@ async function handleLogout() {
   font-size: 20px;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .nav-user {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 20px;
   color: var(--van-nav-bar-text-color, #323233);
-  cursor: pointer;
 }
 
 .nav-username {
   font-size: 14px;
   font-weight: 520;
+}
+
+.nav-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 15px;
+  background: #f2f3f5;
+  color: #323233;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 /* Tabbar icons */

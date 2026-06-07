@@ -11,6 +11,7 @@ import {
 } from "vue";
 import { useRoute } from "vue-router";
 import { getAvatars, getPublishedQA, submitQuestion } from "../api/public";
+import { pageBackground } from "../assets/background";
 import { formatTime } from "../utils";
 
 const route = useRoute();
@@ -117,7 +118,7 @@ const avatarLoopOptions = computed(() => {
       ...avatar,
       cycle,
       index,
-      key: `${cycle}-${avatar.name}`,
+      key: `${cycle}-${avatar.id ?? index}`,
     })),
   ).flat();
 });
@@ -125,7 +126,7 @@ const avatarLoopOptions = computed(() => {
 const selectedAvatarIndex = computed(() => {
   const list = avatarList.value;
   const index = list.findIndex(
-    (avatar) => avatar.name === selectedAvatar.value?.name,
+    (avatar) => avatar.id === selectedAvatar.value?.id,
   );
   return index >= 0 ? index : 0;
 });
@@ -139,6 +140,13 @@ function loadMore() {
   if (!qaLoading.value && qaHasMore.value) {
     loadPublishedQA(false);
   }
+}
+
+function maybeLoadMoreQA() {
+  const list = qaListRef.value;
+  if (!list || qaLoading.value || !qaHasMore.value) return;
+  const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+  if (distance < 220) loadMore();
 }
 
 const composerConfig = {
@@ -325,6 +333,7 @@ function settleQAScrollMotion() {
 
 function handleQAScroll() {
   scheduleQAScrollMotion();
+  maybeLoadMoreQA();
   if (qaMotionState.settleFrame) cancelAnimationFrame(qaMotionState.settleFrame);
   qaMotionState.settleFrame = requestAnimationFrame(settleQAScrollMotion);
 }
@@ -710,7 +719,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="page-bg"
-      src="/bg.png"
+      :src="pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"
@@ -747,13 +756,15 @@ onBeforeUnmount(() => {
             <span class="qa-avatar" :style="{ background: qa.profile.bg }">
               <img :src="qa.profile.iconBase64" class="qa-avatar-img" alt="" />
             </span>
-            <span>{{ qa.profile.name }}</span>
           </span>
           <time>{{ qa.time }}</time>
         </header>
         <p class="qa-question">{{ qa.question }}</p>
         <p class="qa-answer">{{ qa.answer }}</p>
       </article>
+      <div v-if="qaLoading || qaHasMore" class="qa-load-state" aria-live="polite">
+        {{ qaLoading ? "加载中" : "继续下滑加载更多" }}
+      </div>
     </section>
 
     <button
@@ -781,7 +792,6 @@ onBeforeUnmount(() => {
             <span class="qa-avatar" :style="{ background: selectedQA.profile.bg }">
               <img :src="selectedQA.profile.iconBase64" class="qa-avatar-img" alt="" />
             </span>
-            <span>{{ selectedQA.profile.name }}</span>
           </span>
           <button
             class="detail-close"
@@ -809,7 +819,6 @@ onBeforeUnmount(() => {
           <span class="qa-avatar" :style="{ background: selectedAvatar?.bg }">
             <img :src="selectedAvatar?.iconBase64" class="qa-avatar-img" alt="" />
           </span>
-          <span>{{ selectedAvatar?.name }}</span>
         </span>
         <span>{{ charCount }}</span>
       </header>
@@ -865,9 +874,10 @@ onBeforeUnmount(() => {
               :key="avatar.key"
               class="avatar-option"
               :class="{ selected: selectedAvatarIndex === avatar.index }"
+              :style="{ background: avatar.bg }"
               :data-avatar-cycle="avatar.cycle"
               :data-avatar-index="avatar.index"
-              :aria-label="avatar.name"
+              :aria-label="`匿名头像 ${avatar.index + 1}`"
               :aria-pressed="selectedAvatarIndex === avatar.index"
               type="button"
               @click="selectAvatarAt(avatar.index, $event)"
@@ -875,9 +885,7 @@ onBeforeUnmount(() => {
               <img :src="avatar.iconBase64" class="avatar-option-img" alt="" />
             </button>
           </section>
-          <span class="avatar-center-frame" aria-hidden="true"></span>
           <div class="composer-meta">
-            <span>{{ selectedAvatar?.name }}</span>
             <span>{{ charCount }}</span>
           </div>
         </div>
@@ -1102,6 +1110,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 50%;
 }
 
 .qa-avatar i {
@@ -1470,9 +1479,9 @@ onBeforeUnmount(() => {
 }
 
 .avatar-selector {
-  --avatar-slot: 50px;
-  --avatar-height: 44px;
-  --avatar-width: 150px;
+  --avatar-slot: 34px;
+  --avatar-height: 34px;
+  --avatar-width: 102px;
   position: relative;
   z-index: 1;
   display: flex;
@@ -1499,21 +1508,6 @@ onBeforeUnmount(() => {
     transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.avatar-center-frame {
-  position: absolute;
-  top: 50%;
-  left: 56px;
-  z-index: 2;
-  width: 42px;
-  height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  pointer-events: none;
-  transform: translateY(-50%);
-}
-
 .avatar-selector.visible {
   opacity: 1;
   pointer-events: auto;
@@ -1531,9 +1525,8 @@ onBeforeUnmount(() => {
   height: var(--avatar-height);
   flex: 0 0 auto;
   border: 0;
-  border-radius: 15px;
-  padding: 0;
-  background: transparent;
+  border-radius: 50%;
+  padding: 4px;
   color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
   scroll-snap-align: center;
@@ -1542,9 +1535,10 @@ onBeforeUnmount(() => {
 }
 
 .avatar-option-img {
-  width: 40px;
-  height: 40px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  border-radius: 50%;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
 }
 
@@ -1554,7 +1548,20 @@ onBeforeUnmount(() => {
 }
 
 .avatar-option:not(.selected) {
-  opacity: 0.7;
+  opacity: 0.72;
+}
+
+.avatar-option.selected {
+  opacity: 1;
+  filter: brightness(1.12);
+}
+
+.qa-load-state {
+  padding: 8px 0 22px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+  font-weight: 560;
+  text-align: center;
 }
 
 .send-button {

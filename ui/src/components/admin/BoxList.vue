@@ -8,28 +8,46 @@ const loading = ref(true)
 const error = ref('')
 const boxes = ref([])
 const keyword = ref('')
+const currentPage = ref(1)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const pageSize = 20
 
-onMounted(async () => {
+onMounted(() => loadBoxes(true))
+
+async function loadBoxes(reset = true) {
+  if (!reset && (loading.value || loadingMore.value || !hasMore.value)) return
+  if (reset) loading.value = true
+  else loadingMore.value = true
+  error.value = ''
+  const nextPage = reset ? 1 : currentPage.value + 1
   try {
-    const page = await listBoxes(1, 50)
-    boxes.value = page.records
+    const page = await listBoxes(nextPage, pageSize, keyword.value.trim())
+    const records = page.records || []
+    if (reset) boxes.value = records
+    else boxes.value.push(...records)
+    currentPage.value = Number(page.page || nextPage)
+    hasMore.value = currentPage.value < Number(page.totalPages || 0)
   } catch (err) {
     error.value = err.message || '加载失败'
   } finally {
-    loading.value = false
+    if (reset) loading.value = false
+    else loadingMore.value = false
   }
-})
+}
 
 async function doSearch() {
-  loading.value = true
-  try {
-    const page = await listBoxes(1, 50, keyword.value)
-    boxes.value = page.records
-  } catch (err) {
-    error.value = err.message || '搜索失败'
-  } finally {
-    loading.value = false
-  }
+  await loadBoxes(true)
+}
+
+async function loadMoreBoxes() {
+  await loadBoxes(false)
+}
+
+function handleScroll(event) {
+  const el = event.currentTarget
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (distance < 160) loadMoreBoxes()
 }
 
 // ========== 编辑 ==========
@@ -69,7 +87,7 @@ async function submitEdit() {
       <van-search v-model="keyword" placeholder="搜索 slug、显示名、用户名" shape="round" @search="doSearch" />
     </div>
 
-    <div class="page-scroll">
+    <div class="page-scroll" @scroll="handleScroll">
       <van-loading v-if="loading" class="loading-center" size="24" />
       <p v-else-if="error" class="error-msg">{{ error }}</p>
       <van-cell-group v-else inset>
@@ -89,6 +107,9 @@ async function submitEdit() {
         </van-cell>
       </van-cell-group>
       <div v-if="!loading && !error && boxes.length === 0" class="empty-hint">暂无匹配提问箱</div>
+      <div v-if="!loading && !error && boxes.length > 0 && (loadingMore || hasMore)" class="load-more-hint">
+        {{ loadingMore ? '加载中' : '继续下滑加载更多' }}
+      </div>
     </div>
 
     <van-action-sheet v-model:show="showEditSheet" title="编辑提问箱" close-on-click-action>
@@ -112,6 +133,7 @@ async function submitEdit() {
 .slug-badge { padding: 1px 6px; background: #f0f2f5; border-radius: 4px; font-size: 11px; color: #1989fa; font-family: "SF Mono", "Cascadia Code", monospace; }
 .question-count { font-weight: 600; color: #323233; font-size: 14px; }
 .empty-hint { text-align: center; padding: 32px 0; color: #969799; font-size: 14px; }
+.load-more-hint { text-align: center; padding: 14px 0 18px; color: #969799; font-size: 12px; }
 .loading-center { display: flex; justify-content: center; padding: 24px 0; }
 .error-msg { text-align: center; color: #ee0a24; padding: 24px 0; font-size: 14px; }
 .sheet-form { padding: 0 0 16px; }

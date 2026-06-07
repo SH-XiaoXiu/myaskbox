@@ -1,6 +1,7 @@
 <script setup>
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { pageBackground } from "../assets/background";
 
 const rootRef = ref(null);
 const bgRef = ref(null);
@@ -669,7 +670,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="liquid-bg"
-      src="/bg.png"
+      :src="pageBackground.src"
       alt=""
       decoding="async"
       draggable="false"

@@ -10,27 +10,44 @@ const questions = ref([])
 const keyword = ref('')
 const activeTab = ref(0)
 const statusFilters = ['', 'PENDING', 'PUBLISHED', 'DISMISSED']
+const currentPage = ref(1)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const pageSize = 20
 
 const statusMap = { PENDING: '待回答', PUBLISHED: '已发布', DISMISSED: '已驳回' }
 const statusType = { PENDING: 'warning', PUBLISHED: 'success', DISMISSED: 'default' }
 
-async function loadData() {
-  loading.value = true
+function buildParams() {
   const params = {}
   const st = statusFilters[activeTab.value]
   if (st) params.status = st
   if (keyword.value.trim()) params.keyword = keyword.value.trim()
+  return params
+}
+
+async function loadData(reset = true) {
+  if (!reset && (loading.value || loadingMore.value || !hasMore.value)) return
+  if (reset) loading.value = true
+  else loadingMore.value = true
+  error.value = ''
+  const nextPage = reset ? 1 : currentPage.value + 1
   try {
-    const page = await listAllQuestions(1, 50, params)
-    questions.value = page.records
+    const page = await listAllQuestions(nextPage, pageSize, buildParams())
+    const records = page.records || []
+    if (reset) questions.value = records
+    else questions.value.push(...records)
+    currentPage.value = Number(page.page || nextPage)
+    hasMore.value = currentPage.value < Number(page.totalPages || 0)
   } catch (err) {
     error.value = err.message || '加载失败'
   } finally {
-    loading.value = false
+    if (reset) loading.value = false
+    else loadingMore.value = false
   }
 }
 
-onMounted(loadData)
+onMounted(() => loadData(true))
 
 const filteredQuestions = computed(() => {
   // 服务端已筛选，这里直接返回
@@ -38,7 +55,17 @@ const filteredQuestions = computed(() => {
 })
 
 function onTabChange() {
-  loadData()
+  loadData(true)
+}
+
+async function loadMoreQuestions() {
+  await loadData(false)
+}
+
+function handleScroll(event) {
+  const el = event.currentTarget
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  if (distance < 160) loadMoreQuestions()
 }
 
 async function handleDelete(q) {
@@ -73,7 +100,7 @@ function openDetail(q) {
 <template>
   <div class="page">
     <div class="page-sticky">
-      <van-search v-model="keyword" placeholder="搜索问题、回答、提问箱" shape="round" @search="loadData" />
+      <van-search v-model="keyword" placeholder="搜索问题、回答、提问箱" shape="round" @search="loadData(true)" />
       <van-tabs v-model:active="activeTab" :offset-top="0" swipeable class="inline-tabs" @change="onTabChange">
         <van-tab title="全部"></van-tab>
         <van-tab title="待回答"></van-tab>
@@ -82,7 +109,7 @@ function openDetail(q) {
       </van-tabs>
     </div>
 
-    <div class="page-scroll">
+    <div class="page-scroll" @scroll="handleScroll">
       <van-loading v-if="loading" class="loading-center" size="24" />
       <p v-else-if="error" class="error-msg">{{ error }}</p>
       <van-cell-group v-else inset>
@@ -103,6 +130,9 @@ function openDetail(q) {
         </van-cell>
       </van-cell-group>
       <div v-if="!loading && !error && filteredQuestions.length === 0" class="empty-hint">暂无匹配问题</div>
+      <div v-if="!loading && !error && filteredQuestions.length > 0 && (loadingMore || hasMore)" class="load-more-hint">
+        {{ loadingMore ? '加载中' : '继续下滑加载更多' }}
+      </div>
     </div>
 
     <van-dialog v-model:show="showDetail" title="问题详情" :show-confirm-button="false" show-cancel-button cancel-button-text="关闭">
@@ -154,6 +184,7 @@ function openDetail(q) {
 .q-has-answer { color: #07c160; font-weight: 500; }
 .slug-badge { padding: 1px 6px; background: #f0f2f5; border-radius: 4px; font-size: 11px; color: #1989fa; font-family: "SF Mono", "Cascadia Code", monospace; }
 .empty-hint { text-align: center; padding: 32px 0; color: #969799; font-size: 14px; }
+.load-more-hint { text-align: center; padding: 14px 0 18px; color: #969799; font-size: 12px; }
 .loading-center { display: flex; justify-content: center; padding: 24px 0; }
 .error-msg { text-align: center; color: #ee0a24; padding: 24px 0; font-size: 14px; }
 .detail-body { padding: 8px 16px 16px; }
