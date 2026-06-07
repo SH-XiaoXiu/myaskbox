@@ -549,6 +549,10 @@ onBeforeUnmount(() => {
             <i class="ri-save-3-line" aria-hidden="true"></i>
             <span>保存设置</span>
           </button>
+          <button class="settings-save secondary" type="button" @click="router.push('/password')">
+            <i class="ri-lock-password-line" aria-hidden="true"></i>
+            <span>修改密码</span>
+          </button>
         </section>
       </section>
     </section>
@@ -1050,6 +1054,11 @@ onBeforeUnmount(() => {
   color: rgba(20, 18, 28, 0.92);
   font-size: 13px;
   font-weight: 760;
+}
+
+.settings-save.secondary {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .drawer-scrim {

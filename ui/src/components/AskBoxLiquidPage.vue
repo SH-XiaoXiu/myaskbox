@@ -10,7 +10,12 @@ import {
   watch,
 } from "vue";
 import { useRoute } from "vue-router";
-import { getAvatars, getPublishedQA, submitQuestion } from "../api/public";
+import {
+  getAvatars,
+  getPublicBoxProfile,
+  getPublishedQA,
+  submitQuestion,
+} from "../api/public";
 import { pageBackground } from "../assets/background";
 import { formatTime } from "../utils";
 
@@ -18,6 +23,7 @@ const route = useRoute();
 const slug = computed(() => route.params.slug || "xiaoxiu");
 
 // --- 数据状态（取代 mock store） ---
+const boxProfile = ref({ slug: "", displayName: "", description: "" });
 const avatarList = ref([]);
 const publishedQA = ref([]);
 const selectedAvatar = ref(null);
@@ -135,6 +141,29 @@ const charCount = computed(() => `${content.value.length} / 350`);
 const canSend = computed(() => content.value.trim().length > 0 && !sending.value);
 const draftText = computed(() => content.value.trim());
 const visibleQA = computed(() => publishedQA.value);
+const boxTitle = computed(() => {
+  const name = boxProfile.value.displayName?.trim();
+  return name || "AskBox";
+});
+const boxDescription = computed(() => {
+  const description = boxProfile.value.description?.trim();
+  return description || "匿名提问和公开回复";
+});
+const pageAriaLabel = computed(() => `${boxTitle.value} 匿名提问箱`);
+
+async function loadBoxProfile() {
+  try {
+    const profile = await getPublicBoxProfile(slug.value);
+    boxProfile.value = {
+      slug: profile.slug || slug.value,
+      displayName: profile.displayName || "",
+      description: profile.description || "",
+    };
+  } catch (err) {
+    boxProfile.value = { slug: slug.value, displayName: "", description: "" };
+    console.error("Failed to load box profile", err);
+  }
+}
 
 function loadMore() {
   if (!qaLoading.value && qaHasMore.value) {
@@ -679,11 +708,35 @@ watch(visibleQA, () => {
   nextTick(() => scheduleQAScrollMotion());
 });
 
+watch(boxTitle, (title) => {
+  document.title = `${title} - AskBox`;
+}, { immediate: true });
+
+watch(slug, async () => {
+  selectedQA.value = null;
+  detailVisible.value = false;
+  composerOpen.value = false;
+  content.value = "";
+  publishedQA.value = [];
+  qaPage.value = 1;
+  qaHasMore.value = false;
+  await Promise.all([
+    loadBoxProfile(),
+    loadPublishedQA(true),
+  ]);
+  await nextTick();
+  scheduleStableGlassRefresh();
+  scheduleQAScrollMotion();
+});
+
 onMounted(async () => {
   updateViewportMetrics();
   window.addEventListener("resize", updateViewportMetrics);
-  await loadAvatars();
-  await loadPublishedQA(true);
+  await Promise.all([
+    loadAvatars(),
+    loadBoxProfile(),
+    loadPublishedQA(true),
+  ]);
   initLiquidGlass();
   nextTick(() => scheduleQAScrollMotion());
 });
@@ -714,7 +767,7 @@ onBeforeUnmount(() => {
       'has-detail': detailVisible,
       'composer-open': composerOpen,
     }"
-    aria-label="AskBox anonymous questions"
+    :aria-label="pageAriaLabel"
   >
     <img
       ref="bgRef"
@@ -731,8 +784,8 @@ onBeforeUnmount(() => {
     <header class="brand-strip">
       <span class="brand-mark"><i class="ri-question-answer-line" aria-hidden="true"></i></span>
       <span>
-        <strong>小修的 AskBox</strong>
-        <em>匿名提问和公开回复</em>
+        <strong>{{ boxTitle }}</strong>
+        <em>{{ boxDescription }}</em>
       </span>
     </header>
 
