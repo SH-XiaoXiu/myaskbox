@@ -1,13 +1,13 @@
 # AskBox
 
-匿名提问箱项目，包含一个 Spring Boot 后端和一个 Vue 3 前端。用户可以通过公开链接匿名提问，提问箱主在个人页面处理待回答问题，管理员在后台管理用户、提问箱、问题、角色和头像。
+匿名提问箱项目，包含一个 Spring Boot 后端和一个 Vue 3 前端。用户可以通过公开链接匿名提问，提问箱主在个人页面处理待回答问题，管理员在后台管理用户、提问箱、问题、角色、附件和系统设置。
 
 
 ![screenshot1.png](asset/screenshot1.png)
 
 ## 技术栈
 
-- 后端：Java 21、Spring Boot 3、MyBatis-Plus、PostgreSQL、Redis、Flyway、Sa-Token、Knife4j
+- 后端：Java 21、Spring Boot 3、MyBatis-Plus、PostgreSQL、Redis、Flyway、Sa-Token、Knife4j、Hutool
 - 前端：Vue 3、Vite、Pinia、Vue Router、Vant、LiquidGlass、vite-imagetools
 - 基础设施：Docker Compose 提供 PostgreSQL 和 Redis
 
@@ -92,11 +92,14 @@ password: admin123
 - 个人页面：`/home`
 - 管理员页面：`/admin`
 - 登录页：`/login`
+- 注册页：`/register`，需管理员在后台系统设置中开启注册并配置邮件。
 
 角色：
 
 - `ADMIN`：系统管理员，可以进入 `/admin`
 - `BOX_OWNER`：提问箱主，可以进入 `/home`
+
+附件库当前使用 base64 入库，后续可迁移到对象存储。
 
 后端：
 
