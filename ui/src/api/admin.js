@@ -56,20 +56,28 @@ export const forceDeleteQuestion = (id) => api.delete(`/admin/questions/${id}`)
 /** DELETE /api/admin/answers/{id} */
 export const deleteAnswer = (id) => api.delete(`/admin/answers/${id}`)
 
-// ==================== 头像管理 ====================
+// ==================== 附件管理 ====================
 
-/** GET /api/admin/avatars */
-export const listAvatars = (page = 1, pageSize = 20) =>
-  api.get('/admin/avatars', { params: { page, pageSize } })
+/** GET /api/admin/attachments */
+export const listAttachments = (page = 1, pageSize = 20, usageType = '') =>
+  api.get('/admin/attachments', { params: { page, pageSize, usageType: usageType || undefined } })
 
-/** POST /api/admin/avatars */
-export const createAvatar = (data) => api.post('/admin/avatars', data)
+/** POST /api/admin/attachments */
+export const createAttachment = (data) => api.post('/admin/attachments', data)
 
-/** PUT /api/admin/avatars/{id} */
-export const updateAvatar = (id, data) => api.put(`/admin/avatars/${id}`, data)
+/** PUT /api/admin/attachments/{id} */
+export const updateAttachment = (id, data) => api.put(`/admin/attachments/${id}`, data)
 
-/** DELETE /api/admin/avatars/{id} */
-export const deleteAvatar = (id) => api.delete(`/admin/avatars/${id}`)
+/** DELETE /api/admin/attachments/{id} */
+export const deleteAttachment = (id) => api.delete(`/admin/attachments/${id}`)
+
+// ==================== 系统设置 ====================
+
+/** GET /api/admin/settings */
+export const listSettings = () => api.get('/admin/settings')
+
+/** PUT /api/admin/settings */
+export const updateSettings = (items) => api.put('/admin/settings', { items })
 
 // ==================== 角色 & 权限 ====================
 

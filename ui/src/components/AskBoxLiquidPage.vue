@@ -11,7 +11,7 @@ import {
 } from "vue";
 import { useRoute } from "vue-router";
 import {
-  getAvatars,
+  getAnonymousAvatars,
   getPublicBoxProfile,
   getPublishedQA,
   submitQuestion,
@@ -33,12 +33,12 @@ const qaHasMore = ref(false);
 
 // 适配器：将后端 Avatar 转为组件内使用的格式
 function toAvatarOption(a) {
-  return { id: a.id, name: a.name, iconBase64: a.iconBase64, bg: a.bg };
+  return { id: a.id, name: a.name, contentBase64: a.contentBase64, bg: a.bg };
 }
 
 async function loadAvatars() {
   try {
-    const list = await getAvatars();
+    const list = await getAnonymousAvatars();
     avatarList.value = list.map(toAvatarOption);
     if (avatarList.value.length > 0) {
       selectedAvatar.value = avatarList.value[0];
@@ -56,7 +56,8 @@ async function loadPublishedQA(reset = false) {
     const result = await getPublishedQA(slug.value, page, 10);
     const items = result.records.map(q => ({
       id: q.id,
-      profile: { name: q.avatar?.name, iconBase64: q.avatar?.iconBase64, bg: q.avatar?.bg },
+      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      ownerAvatar: q.ownerAvatar,
       question: q.question,
       answer: q.answer,
       ts: q.ts,
@@ -92,6 +93,7 @@ const detailScrimRef = ref(null);
 const composerToolsRef = ref(null);
 
 const composerOpen = ref(false);
+const composerClosing = ref(false);
 const content = ref("");
 const sending = ref(false);
 const selectedQA = ref(null);
@@ -107,8 +109,7 @@ let glassRefreshFrame = 0;
 let toastTimer = 0;
 let composerAnimation = null;
 let composerToolsAnimation = null;
-let detailAnimation = null;
-let detailScrimAnimation = null;
+let composerTransitionToken = 0;
 let stableRefreshTimers = [];
 let qaMotionState = {
   lastScrollTop: 0,
@@ -140,6 +141,7 @@ const selectedAvatarIndex = computed(() => {
 const charCount = computed(() => `${content.value.length} / 350`);
 const canSend = computed(() => content.value.trim().length > 0 && !sending.value);
 const draftText = computed(() => content.value.trim());
+const composerExpanded = computed(() => composerOpen.value || composerClosing.value);
 const visibleQA = computed(() => publishedQA.value);
 const boxTitle = computed(() => {
   const name = boxProfile.value.displayName?.trim();
@@ -150,6 +152,7 @@ const boxDescription = computed(() => {
   return description || "匿名提问和公开回复";
 });
 const pageAriaLabel = computed(() => `${boxTitle.value} 匿名提问箱`);
+const ownerAvatarStyle = computed(() => avatarImageStyle(boxProfile.value.avatar));
 
 async function loadBoxProfile() {
   try {
@@ -158,6 +161,8 @@ async function loadBoxProfile() {
       slug: profile.slug || slug.value,
       displayName: profile.displayName || "",
       description: profile.description || "",
+      avatar: profile.avatar || null,
+      background: profile.background || null,
     };
   } catch (err) {
     boxProfile.value = { slug: slug.value, displayName: "", description: "" };
@@ -263,13 +268,88 @@ function scheduleStableGlassRefresh() {
   );
 }
 
+function stopAnimation(animation) {
+  animation?.stop?.();
+  animation?.cancel?.();
+}
+
+function animateComposerOpen() {
+  composerTransitionToken += 1;
+  const panel = composerRef.value;
+  if (!panel) return;
+
+  stopAnimation(composerAnimation);
+  stopAnimation(composerToolsAnimation);
+  composerAnimation = animate(
+    panel,
+    {
+      opacity: [0.96, 1, 1],
+      transform: [
+        "translateY(-18px) scale(0.972)",
+        "translateY(3px) scale(1.006)",
+        "translateY(0) scale(1)",
+      ],
+    },
+    { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
+  );
+
+  if (composerToolsRef.value) {
+    composerToolsAnimation = animate(
+      composerToolsRef.value,
+      { opacity: [0, 1], transform: ["translateY(-8px)", "translateY(0)"] },
+      { duration: 0.22, delay: 0.06, ease: [0.16, 1, 0.3, 1] },
+    );
+  }
+}
+
+async function closeComposer() {
+  if (!composerOpen.value || composerClosing.value) return;
+  const token = ++composerTransitionToken;
+  composerClosing.value = true;
+  stopAnimation(composerAnimation);
+  stopAnimation(composerToolsAnimation);
+
+  await nextTick();
+  scheduleStableGlassRefresh();
+
+  if (composerRef.value) {
+    composerAnimation = animate(
+      composerRef.value,
+      { transform: ["translateY(0) scale(1)", "translateY(-8px) scale(0.985)"] },
+      { duration: 0.18, ease: [0.4, 0, 1, 1] },
+    );
+    await composerAnimation.finished?.catch?.(() => {});
+  } else {
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
+  }
+
+  if (token !== composerTransitionToken) return;
+  composerOpen.value = false;
+  composerClosing.value = false;
+  await nextTick();
+
+  if (composerRef.value) {
+    composerAnimation = animate(
+      composerRef.value,
+      { transform: ["translateY(-8px) scale(0.985)", "translateY(0) scale(1)"] },
+      { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+    );
+  }
+  scheduleStableGlassRefresh();
+}
+
 function openComposer() {
+  composerTransitionToken += 1;
+  stopAnimation(composerAnimation);
+  stopAnimation(composerToolsAnimation);
   selectedQA.value = null;
   detailVisible.value = false;
+  composerClosing.value = false;
   composerOpen.value = true;
   nextTick(() => {
     textareaRef.value?.focus();
     resetTextareaScroll();
+    animateComposerOpen();
     scheduleStableGlassRefresh();
   });
 }
@@ -375,8 +455,7 @@ function closeComposerIfEmpty(event) {
   if (content.value.trim() || sending.value) return;
   const nextTarget = event?.relatedTarget;
   if (nextTarget?.closest?.(".composer-card")) return;
-  composerOpen.value = false;
-  scheduleStableGlassRefresh();
+  closeComposer();
 }
 
 function resetTextareaScroll() {
@@ -385,100 +464,15 @@ function resetTextareaScroll() {
   el.scrollTop = 0;
 }
 
-function stopAnimation(animation) {
-  animation?.stop?.();
-  animation?.cancel?.();
+function avatarSrc(avatar) {
+  if (!avatar) return "";
+  return typeof avatar === "string" ? avatar : avatar.contentBase64 || "";
 }
 
-function animateComposer() {
-  const panel = composerRef.value;
-  if (!panel) return;
-
-  stopAnimation(composerAnimation);
-  stopAnimation(composerToolsAnimation);
-
-  if (composerOpen.value) {
-    composerAnimation = animate(
-      panel,
-      {
-        opacity: [0.92, 1, 1],
-        transform: [
-          "translateY(-24px) scale(0.96)",
-          "translateY(4px) scale(1.012)",
-          "translateY(0) scale(1)",
-        ],
-      },
-      { duration: 0.42, ease: [0.16, 1, 0.3, 1] },
-    );
-
-    if (composerToolsRef.value) {
-      composerToolsAnimation = animate(
-        composerToolsRef.value,
-        { opacity: [0, 1], transform: ["translateY(-8px)", "translateY(0)"] },
-        { duration: 0.24, delay: 0.08, ease: [0.16, 1, 0.3, 1] },
-      );
-    }
-    return;
-  }
-
-  composerAnimation = animate(
-    panel,
-    {
-      opacity: [0.98, 1],
-      transform: ["translateY(-6px) scale(0.985)", "translateY(0) scale(1)"],
-    },
-    { duration: 0.22, ease: [0.2, 0.8, 0.2, 1] },
-  );
-}
-
-function animateDetail() {
-  const panel = detailRef.value;
-  if (!panel) return;
-
-  stopAnimation(detailAnimation);
-  stopAnimation(detailScrimAnimation);
-
-  if (detailVisible.value) {
-    if (detailScrimRef.value) {
-      detailScrimAnimation = animate(
-        detailScrimRef.value,
-        { opacity: [0, 1] },
-        { duration: 0.22, ease: "ease-out" },
-      );
-    }
-    detailAnimation = animate(
-      panel,
-      {
-        opacity: [0, 1, 1],
-        transform: [
-          "translate(-50%, -44%) scale(0.9)",
-          "translate(-50%, -51%) scale(1.025)",
-          "translate(-50%, -50%) scale(1)",
-        ],
-      },
-      { duration: 0.42, ease: [0.16, 1, 0.3, 1] },
-    );
-    return;
-  }
-
-  if (detailScrimRef.value) {
-    detailScrimAnimation = animate(
-      detailScrimRef.value,
-      { opacity: [1, 0] },
-      { duration: 0.18, ease: "ease-in" },
-    );
-  }
-  detailAnimation = animate(
-    panel,
-    {
-      opacity: [1, 0],
-      transform: [
-        "translate(-50%, -50%) scale(1)",
-        "translate(-50%, -46%) scale(0.94)",
-      ],
-    },
-    { duration: 0.2, ease: [0.4, 0, 1, 1] },
-  );
+function avatarImageStyle(avatar, fallbackBg = "rgba(255, 255, 255, 0.16)") {
+  return {
+    backgroundColor: avatar?.bg || fallbackBg,
+  };
 }
 
 function centerAvatar(index, behavior = "smooth", targetEl = null) {
@@ -602,7 +596,7 @@ async function handleSend() {
 
   sending.value = false;
   content.value = "";
-  composerOpen.value = false;
+  await closeComposer();
   showToast("问题已投递，我会尽快回答");
 
   // 刷新列表以显示新问题（如果该箱自动发布的话）
@@ -683,14 +677,12 @@ async function initLiquidGlass() {
 
 watch(composerOpen, () => {
   nextTick(() => {
-    animateComposer();
     scheduleStableGlassRefresh();
   });
 });
 
 watch(detailVisible, () => {
   nextTick(() => {
-    animateDetail();
     scheduleStableGlassRefresh();
   });
 });
@@ -749,11 +741,9 @@ onBeforeUnmount(() => {
   if (qaMotionState.settleFrame) cancelAnimationFrame(qaMotionState.settleFrame);
   window.clearTimeout(avatarRecenterTimer.value);
   window.clearTimeout(toastTimer);
-  stableRefreshTimers.forEach((timer) => window.clearTimeout(timer));
   stopAnimation(composerAnimation);
   stopAnimation(composerToolsAnimation);
-  stopAnimation(detailAnimation);
-  stopAnimation(detailScrimAnimation);
+  stableRefreshTimers.forEach((timer) => window.clearTimeout(timer));
   liquidGlass?.destroy();
   liquidGlass = null;
 });
@@ -772,7 +762,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="page-bg"
-      :src="pageBackground.src"
+      :src="boxProfile.background?.contentBase64 || pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"
@@ -782,7 +772,10 @@ onBeforeUnmount(() => {
     />
 
     <header class="brand-strip">
-      <span class="brand-mark"><i class="ri-question-answer-line" aria-hidden="true"></i></span>
+      <span class="brand-mark" :style="ownerAvatarStyle">
+        <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" @load="scheduleGlassRefresh()" />
+        <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
+      </span>
       <span>
         <strong>{{ boxTitle }}</strong>
         <em>{{ boxDescription }}</em>
@@ -790,6 +783,7 @@ onBeforeUnmount(() => {
     </header>
 
     <section
+      v-show="!detailVisible && !composerExpanded"
       ref="qaListRef"
       class="qa-list"
       aria-label="公开回复列表"
@@ -806,13 +800,19 @@ onBeforeUnmount(() => {
       >
         <header class="qa-head">
           <span class="qa-author">
-            <span class="qa-avatar" :style="{ background: qa.profile.bg }">
-              <img :src="qa.profile.iconBase64" class="qa-avatar-img" alt="" />
+            <span class="qa-avatar" :style="avatarImageStyle(qa.profile)">
+              <img v-if="avatarSrc(qa.profile)" :src="avatarSrc(qa.profile)" alt="" @load="scheduleGlassRefresh()" />
             </span>
           </span>
           <time>{{ qa.time }}</time>
         </header>
         <p class="qa-question">{{ qa.question }}</p>
+        <div v-if="qa.ownerAvatar" class="qa-owner-line">
+          <span class="qa-avatar owner" :style="avatarImageStyle(qa.ownerAvatar)">
+            <img v-if="avatarSrc(qa.ownerAvatar)" :src="avatarSrc(qa.ownerAvatar)" alt="" @load="scheduleGlassRefresh()" />
+          </span>
+          <span>{{ boxTitle }}</span>
+        </div>
         <p class="qa-answer">{{ qa.answer }}</p>
       </article>
       <div v-if="qaLoading || qaHasMore" class="qa-load-state" aria-live="polite">
@@ -842,8 +842,8 @@ onBeforeUnmount(() => {
       <template v-if="selectedQA">
         <header class="detail-head">
           <span class="qa-author">
-            <span class="qa-avatar" :style="{ background: selectedQA.profile.bg }">
-              <img :src="selectedQA.profile.iconBase64" class="qa-avatar-img" alt="" />
+            <span class="qa-avatar" :style="avatarImageStyle(selectedQA.profile)">
+              <img v-if="avatarSrc(selectedQA.profile)" :src="avatarSrc(selectedQA.profile)" alt="" @load="scheduleGlassRefresh()" />
             </span>
           </span>
           <button
@@ -857,20 +857,27 @@ onBeforeUnmount(() => {
         </header>
         <time class="detail-time">{{ selectedQA.time }}</time>
         <p class="detail-question">{{ selectedQA.question }}</p>
+        <div v-if="selectedQA.ownerAvatar" class="detail-owner-line">
+          <span class="qa-avatar owner" :style="avatarImageStyle(selectedQA.ownerAvatar)">
+            <img v-if="avatarSrc(selectedQA.ownerAvatar)" :src="avatarSrc(selectedQA.ownerAvatar)" alt="" @load="scheduleGlassRefresh()" />
+          </span>
+          <span>{{ boxTitle }}</span>
+        </div>
         <p class="detail-answer">{{ selectedQA.answer }}</p>
       </template>
     </article>
 
     <article
+      v-show="composerExpanded && draftText"
       class="liquid-glass draft-preview-card"
-      :class="{ visible: composerOpen && draftText }"
+      :class="{ visible: composerOpen && draftText && !composerClosing }"
       :data-config="configJson(detailCardConfig)"
       :aria-hidden="!(composerOpen && draftText)"
     >
       <header class="draft-preview-head">
         <span class="qa-author">
-          <span class="qa-avatar" :style="{ background: selectedAvatar?.bg }">
-            <img :src="selectedAvatar?.iconBase64" class="qa-avatar-img" alt="" />
+          <span class="qa-avatar" :style="avatarImageStyle(selectedAvatar)">
+            <img v-if="avatarSrc(selectedAvatar)" :src="avatarSrc(selectedAvatar)" alt="" @load="scheduleGlassRefresh()" />
           </span>
         </span>
         <span>{{ charCount }}</span>
@@ -881,13 +888,13 @@ onBeforeUnmount(() => {
     <section
       ref="composerRef"
       class="liquid-glass composer-card"
-      :class="{ expanded: composerOpen }"
+      :class="{ expanded: composerExpanded, closing: composerClosing }"
       :data-config="configJson(composerConfig)"
       aria-label="Ask a question"
       @click.self="openComposer"
     >
       <button
-        v-if="!composerOpen"
+        v-if="!composerExpanded"
         class="composer-pill"
         type="button"
         @click="openComposer"
@@ -927,7 +934,7 @@ onBeforeUnmount(() => {
               :key="avatar.key"
               class="avatar-option"
               :class="{ selected: selectedAvatarIndex === avatar.index }"
-              :style="{ background: avatar.bg }"
+              :style="avatarImageStyle(avatar)"
               :data-avatar-cycle="avatar.cycle"
               :data-avatar-index="avatar.index"
               :aria-label="`匿名头像 ${avatar.index + 1}`"
@@ -935,7 +942,7 @@ onBeforeUnmount(() => {
               type="button"
               @click="selectAvatarAt(avatar.index, $event)"
             >
-              <img :src="avatar.iconBase64" class="avatar-option-img" alt="" />
+              <img v-if="avatarSrc(avatar)" :src="avatarSrc(avatar)" alt="" @load="scheduleGlassRefresh()" />
             </button>
           </section>
           <div class="composer-meta">
@@ -946,8 +953,9 @@ onBeforeUnmount(() => {
     </section>
 
     <button
+      v-show="composerExpanded"
       class="liquid-glass send-button"
-      :class="{ visible: composerOpen, ready: canSend, loading: sending }"
+      :class="{ visible: composerOpen && !composerClosing, ready: canSend, loading: sending }"
       :disabled="!canSend"
       :data-config="configJson(sendButtonConfig)"
       type="button"
@@ -1038,7 +1046,17 @@ onBeforeUnmount(() => {
   height: 42px;
   border-radius: 14px;
   background: rgba(0, 0, 0, 0.24);
+  background-position: center;
+  background-size: cover;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .brand-mark i {
@@ -1173,15 +1191,25 @@ onBeforeUnmount(() => {
   height: 28px;
   border-radius: 50%;
   flex: 0 0 auto;
+  background-position: center;
+  background-size: cover;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
   overflow: hidden;
 }
 
-.qa-avatar-img {
+.qa-avatar img,
+.avatar-option img {
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
-  border-radius: 50%;
+  clip-path: circle(50%);
+}
+
+.qa-avatar.owner {
+  width: 24px;
+  height: 24px;
+  background-color: rgba(255, 255, 255, 0.16);
 }
 
 .qa-avatar i {
@@ -1197,7 +1225,9 @@ onBeforeUnmount(() => {
 }
 
 .qa-question,
-.qa-answer {
+.qa-answer,
+.qa-owner-line,
+.detail-owner-line {
   position: relative;
   z-index: 1;
   margin: 0;
@@ -1231,6 +1261,17 @@ onBeforeUnmount(() => {
   -webkit-line-clamp: 3;
 }
 
+.qa-owner-line,
+.detail-owner-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  font-weight: 680;
+}
+
 .detail-scrim {
   position: absolute;
   inset: 0;
@@ -1246,6 +1287,8 @@ onBeforeUnmount(() => {
 
 .detail-scrim.visible {
   pointer-events: auto;
+  opacity: 1;
+  transition: opacity 220ms ease-out;
 }
 
 .detail-card {
@@ -1267,6 +1310,11 @@ onBeforeUnmount(() => {
 
 .detail-card.visible {
   pointer-events: auto;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  transition:
+    opacity 220ms ease,
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .detail-card::before {
@@ -1438,6 +1486,9 @@ onBeforeUnmount(() => {
   cursor: default;
   touch-action: auto;
   transform: translateY(0) scale(1);
+  transition:
+    opacity 180ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: opacity, transform;
 }
 
@@ -1445,6 +1496,11 @@ onBeforeUnmount(() => {
   min-height: var(--composer-expanded-height);
   padding: 10px;
   transform: translateY(0) scale(1);
+}
+
+.composer-card.closing {
+  opacity: 0.88;
+  pointer-events: none;
 }
 
 .composer-pill {
@@ -1598,19 +1654,13 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 50%;
   padding: 4px;
+  background-position: center;
+  background-size: cover;
   color: rgba(255, 255, 255, 0.9);
   cursor: pointer;
   scroll-snap-align: center;
   scroll-snap-stop: always;
   transition: opacity 160ms ease;
-}
-
-.avatar-option-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 50%;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
 }
 
 .avatar-option i {
@@ -1710,6 +1760,20 @@ onBeforeUnmount(() => {
   to {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qa-list,
+  .detail-scrim.visible,
+  .detail-card.visible,
+  .draft-preview-card,
+  .composer-card,
+  .avatar-selector,
+  .send-button,
+  .status-toast {
+    animation: none;
+    transition: none;
   }
 }
 

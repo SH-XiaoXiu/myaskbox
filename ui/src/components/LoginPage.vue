@@ -4,6 +4,7 @@ import { LiquidGlass } from "@ybouane/liquidglass";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { pageBackground } from "../assets/background";
+import { getRegisterConfig } from "../api/auth";
 import { useAuthStore } from "../stores/auth";
 
 const router = useRouter();
@@ -21,6 +22,7 @@ const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
 const success = ref(false);
+const registerEnabled = ref(false);
 
 let liquidGlass = null;
 let initToken = 0;
@@ -244,6 +246,11 @@ function goHome() {
 
 // ==================== Lifecycle ====================
 onMounted(() => {
+  getRegisterConfig().then((config) => {
+    registerEnabled.value = Boolean(config?.enabled);
+  }).catch(() => {
+    registerEnabled.value = false;
+  });
   initLiquidGlass();
   nextTick(() => {
     animateCardIn();
@@ -363,6 +370,10 @@ onBeforeUnmount(() => {
       <button class="login-home-link" type="button" @click="goHome">
         <i class="ri-arrow-left-line" aria-hidden="true"></i>
         <span>返回首页</span>
+      </button>
+      <button v-if="registerEnabled" class="login-home-link" type="button" @click="router.push('/register')">
+        <i class="ri-user-add-line" aria-hidden="true"></i>
+        <span>注册账号</span>
       </button>
     </article>
   </main>

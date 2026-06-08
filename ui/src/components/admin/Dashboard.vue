@@ -13,7 +13,7 @@ const stats = ref([
   { label: '用户总数', value: 0, icon: 'ri-user-3-line', color: '#6366f1' },
   { label: '提问箱', value: 0, icon: 'ri-mail-send-line', color: '#10b981' },
   { label: '问题总数', value: 0, icon: 'ri-question-answer-line', color: '#f59e0b' },
-  { label: '头像数量', value: 0, icon: 'ri-emotion-line', color: '#ec4899' },
+  { label: '附件数量', value: 0, icon: 'ri-attachment-2', color: '#ec4899' },
 ])
 
 const recentUsers = ref([])
@@ -27,7 +27,7 @@ onMounted(async () => {
     stats.value[0].value = data.userCount
     stats.value[1].value = data.boxCount
     stats.value[2].value = data.questionCount
-    stats.value[3].value = data.avatarCount
+    stats.value[3].value = data.attachmentCount
     recentUsers.value = usersPage.records
   } catch (err) {
     error.value = err.message || '加载失败'

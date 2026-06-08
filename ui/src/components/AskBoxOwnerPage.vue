@@ -7,6 +7,7 @@ import { useAuthStore } from "../stores/auth";
 import { formatTime } from "../utils";
 import {
   getBoxProfile, updateBoxProfile,
+  getBoxStats,
   getPendingQuestions, getHistoryQuestions,
   answerQuestion, dismissQuestion, deleteQuestion,
 } from "../api/owner";
@@ -14,11 +15,12 @@ import {
 const router = useRouter();
 const auth = useAuthStore();
 
-const boxProfile = ref({ displayName: "", slug: "", description: "" });
+const boxProfile = ref({ displayName: "", slug: "", description: "", avatar: null, background: null });
 const pendingQuestions = ref([]);
 const publishedQA = ref([]);
 const dismissedQuestions = ref([]);
 const loading = ref(false);
+const stats = ref({ pendingCount: 0, publishedCount: 0, dismissedCount: 0, todayReceivedCount: 0 });
 const pageState = ref({
   pending: { page: 1, hasMore: false, loading: false },
   published: { page: 1, hasMore: false, loading: false },
@@ -28,10 +30,20 @@ const pageState = ref({
 async function loadProfile() {
   const p = await getBoxProfile();
   if (!p) return;
-  boxProfile.value = { displayName: p.displayName || "", slug: p.slug || "", description: p.description || "" };
+  boxProfile.value = {
+    displayName: p.displayName || "",
+    slug: p.slug || "",
+    description: p.description || "",
+    avatar: p.avatar || null,
+    background: p.background || null,
+  };
   profileDraft.displayName = p.displayName || "";
   profileDraft.slug = p.slug || "";
   profileDraft.description = p.description || "";
+}
+
+async function loadStats() {
+  stats.value = await getBoxStats();
 }
 
 async function loadPending(reset = false) {
@@ -43,7 +55,7 @@ async function loadPending(reset = false) {
     const r = await getPendingQuestions(page, 20);
     const items = r.records.map(q => ({
       id: q.id,
-      profile: { name: q.avatar?.name, iconBase64: q.avatar?.iconBase64, bg: q.avatar?.bg },
+      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
       question: q.question,
       ts: q.ts,
       time: formatTime(q.ts),
@@ -67,7 +79,8 @@ async function loadHistory(status, reset = false) {
     const r = await getHistoryQuestions(status, page, 20);
     const items = r.records.map(q => ({
       id: q.id,
-      profile: { name: q.avatar?.name, iconBase64: q.avatar?.iconBase64, bg: q.avatar?.bg },
+      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      ownerAvatar: q.ownerAvatar,
       question: q.question,
       answer: q.answer,
       ts: q.ts,
@@ -86,12 +99,14 @@ async function handlePublishAnswer(qId, text) {
   // 从 pending 移走，刷新
   pendingQuestions.value = pendingQuestions.value.filter(q => q.id !== qId);
   loadHistory("PUBLISHED", true);
+  loadStats();
 }
 
 async function handleDismiss(qId) {
   await dismissQuestion(qId);
   pendingQuestions.value = pendingQuestions.value.filter(q => q.id !== qId);
   loadHistory("DISMISSED", true);
+  loadStats();
 }
 
 async function handleDelete(qId) {
@@ -100,14 +115,20 @@ async function handleDelete(qId) {
 }
 
 async function handleUpdateProfile(data) {
-  await updateBoxProfile(data);
-  boxProfile.value = { ...boxProfile.value, ...data };
+  const updated = await updateBoxProfile(data);
+  boxProfile.value = {
+    ...boxProfile.value,
+    ...updated,
+    avatar: updated.avatar || null,
+    background: updated.background || null,
+  };
 }
 
 const rootRef = ref(null);
 const bgRef = ref(null);
 const drawerRef = ref(null);
 const answerRef = ref(null);
+const avatarInputRef = ref(null);
 
 const activeTab = ref("pending");
 const selectedQuestion = ref(null);
@@ -163,12 +184,9 @@ const drawerConfig = {
   shadowOffsetY: 3,
 };
 
-const allAnsweredCount = computed(() => publishedQA.value.length);
-const todayCount = computed(() => {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return [...pendingQuestions.value, ...publishedQA.value].filter((q) => q.ts >= start.getTime()).length;
-});
+const allAnsweredCount = computed(() => stats.value.publishedCount);
+const todayCount = computed(() => stats.value.todayReceivedCount);
+const pendingCount = computed(() => stats.value.pendingCount);
 const publicUrl = computed(() => `/box/${boxProfile.value.slug}`);
 const displayedQuestions = computed(() => {
   if (activeTab.value === "pending") return pendingQuestions.value;
@@ -182,6 +200,9 @@ const selectedIsPending = computed(
 );
 const selectedIsPublished = computed(
   () => activeTab.value === "published" && selectedQuestion.value,
+);
+const selectedIsReadOnly = computed(
+  () => (activeTab.value === "published" || activeTab.value === "dismissed") && selectedQuestion.value,
 );
 const answerCount = computed(() => `${answerText.value.length} / 5000`);
 const canPublish = computed(() => answerText.value.trim().length > 0);
@@ -284,7 +305,9 @@ function selectQuestion(question) {
   selectedQuestion.value = question;
   answerText.value = activeTab.value === "pending" ? "" : question.answer ?? "";
   answerError.value = false;
-  nextTick(() => answerRef.value?.focus?.({ preventScroll: true }));
+  nextTick(() => {
+    if (activeTab.value === "pending") answerRef.value?.focus?.({ preventScroll: true });
+  });
 }
 
 function loadActivePage() {
@@ -348,10 +371,72 @@ async function dismissSelected() {
   showToast("问题已驳回");
 }
 
-function saveProfile() {
-  handleUpdateProfile(profileDraft);
-  showToast("设置已保存");
+function profilePayload(extra = {}) {
+  return {
+    displayName: profileDraft.displayName || boxProfile.value.displayName,
+    slug: profileDraft.slug || boxProfile.value.slug,
+    description: profileDraft.description ?? boxProfile.value.description ?? "",
+    ...extra,
+  };
+}
+
+async function saveProfile() {
+  try {
+    await handleUpdateProfile(profilePayload());
+    showToast("设置已保存");
+  } catch (error) {
+    showToast(error?.message || "保存失败");
+  }
   nextTick(() => scheduleGlassRefresh(rootRef.value));
+}
+
+function handleBackgroundFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await handleUpdateProfile(profilePayload({ backgroundBase64: String(reader.result || "") }));
+      showToast("背景已更新");
+    } catch (error) {
+      showToast(error?.message || "背景上传失败");
+    }
+    nextTick(() => scheduleGlassRefresh(rootRef.value));
+  };
+  reader.readAsDataURL(file);
+}
+
+async function clearBackground() {
+  try {
+    await handleUpdateProfile(profilePayload({ backgroundBase64: "" }));
+    showToast("已使用默认背景");
+  } catch (error) {
+    showToast(error?.message || "清空失败");
+  }
+  nextTick(() => scheduleGlassRefresh(rootRef.value));
+}
+
+function openAvatarPicker() {
+  avatarInputRef.value?.click();
+}
+
+function handleAvatarFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await handleUpdateProfile(profilePayload({ avatarBase64: String(reader.result || "") }));
+      showToast("头像已更新");
+    } catch (error) {
+      showToast(error?.message || "头像上传失败");
+    }
+    nextTick(() => scheduleGlassRefresh(rootRef.value));
+  };
+  reader.readAsDataURL(file);
 }
 
 async function copyPublicUrl() {
@@ -366,6 +451,17 @@ async function copyPublicUrl() {
 
 function questionTime(question) {
   return question?.ts ? formatTime(question.ts) : question?.time;
+}
+
+function avatarSrc(avatar) {
+  if (!avatar) return "";
+  return typeof avatar === "string" ? avatar : avatar.contentBase64 || "";
+}
+
+function avatarStyle(avatar, fallbackBg = "rgba(255,255,255,.16)") {
+  return {
+    backgroundColor: avatar?.bg || fallbackBg,
+  };
 }
 
 watch(displayedQuestions, (questions) => {
@@ -386,7 +482,7 @@ watch(activeTab, () => {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadProfile(), loadPending(true), loadHistory("PUBLISHED", true), loadHistory("DISMISSED", true)]);
+    await Promise.all([loadProfile(), loadStats(), loadPending(true), loadHistory("PUBLISHED", true), loadHistory("DISMISSED", true)]);
   } catch {
     // 已由拦截器 showToast
   }
@@ -409,13 +505,13 @@ onBeforeUnmount(() => {
   <main
     ref="rootRef"
     class="owner-page"
-    :class="{ 'drawer-open': selectedQuestion }"
+    :class="{ 'drawer-open': selectedQuestion, 'readonly-open': selectedIsReadOnly }"
     aria-label="AskBox owner workspace"
   >
     <img
       ref="bgRef"
       class="owner-bg"
-      :src="pageBackground.src"
+      :src="boxProfile.background?.contentBase64 || pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"
@@ -429,7 +525,17 @@ onBeforeUnmount(() => {
       :data-config="configJson(topbarConfig)"
     >
       <div class="owner-identity">
-        <span class="owner-avatar"><i class="ri-user-heart-line" aria-hidden="true"></i></span>
+        <button class="owner-avatar" type="button" :style="avatarStyle(boxProfile.avatar)" aria-label="上传头像" @click="openAvatarPicker">
+          <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" @load="scheduleGlassRefresh()" />
+          <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
+        </button>
+        <input
+          ref="avatarInputRef"
+          class="hidden-file-input"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          @change="handleAvatarFile"
+        />
         <span>
           <strong>{{ boxProfile.displayName }}</strong>
           <em>{{ boxProfile.description }}</em>
@@ -451,7 +557,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <section class="owner-workspace" aria-label="箱主控制台">
+    <section v-show="!selectedQuestion" class="owner-workspace" aria-label="箱主控制台">
       <aside class="owner-rail" aria-label="控制台导航">
         <button
           v-for="tab in tabs"
@@ -470,7 +576,7 @@ onBeforeUnmount(() => {
         <div class="owner-summary">
           <article class="metric-block">
             <span>待回答</span>
-            <strong>{{ pendingQuestions.length }}</strong>
+            <strong>{{ pendingCount }}</strong>
           </article>
           <article class="metric-block">
             <span>已发布</span>
@@ -508,8 +614,8 @@ onBeforeUnmount(() => {
           >
             <header>
               <span class="question-author">
-                <span class="mini-avatar" :style="{ background: question.profile?.bg }">
-                  <img :src="question.profile?.iconBase64" class="owner-avatar-img" alt="" />
+                <span class="mini-avatar" :style="avatarStyle(question.profile)">
+                  <img v-if="avatarSrc(question.profile)" :src="avatarSrc(question.profile)" alt="" @load="scheduleGlassRefresh()" />
                 </span>
               </span>
               <time>{{ questionTime(question) }}</time>
@@ -545,14 +651,29 @@ onBeforeUnmount(() => {
             <span>简介</span>
             <textarea v-model="profileDraft.description" rows="5" maxlength="160"></textarea>
           </label>
-          <button class="settings-save" type="button" @click="saveProfile">
-            <i class="ri-save-3-line" aria-hidden="true"></i>
-            <span>保存设置</span>
-          </button>
-          <button class="settings-save secondary" type="button" @click="router.push('/password')">
-            <i class="ri-lock-password-line" aria-hidden="true"></i>
-            <span>修改密码</span>
-          </button>
+          <div class="media-settings">
+            <section class="media-setting">
+              <span>背景</span>
+              <div class="media-actions">
+                <label class="file-button">
+                  <i class="ri-image-add-line" aria-hidden="true"></i>
+                  <span>修改背景</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="handleBackgroundFile" />
+                </label>
+                <button class="plain-action" type="button" @click="clearBackground">清空背景</button>
+              </div>
+            </section>
+          </div>
+          <div class="settings-actions">
+            <button class="settings-save" type="button" @click="saveProfile">
+              <i class="ri-save-3-line" aria-hidden="true"></i>
+              <span>保存设置</span>
+            </button>
+            <button class="settings-save secondary" type="button" @click="router.push('/password')">
+              <i class="ri-lock-password-line" aria-hidden="true"></i>
+              <span>修改密码</span>
+            </button>
+          </div>
         </section>
       </section>
     </section>
@@ -569,15 +690,23 @@ onBeforeUnmount(() => {
     <aside
       ref="drawerRef"
       class="liquid-glass owner-drawer"
-      :class="{ visible: selectedQuestion }"
+      :class="{ visible: selectedQuestion, readonly: selectedIsReadOnly }"
       :data-config="configJson(drawerConfig)"
       aria-label="问题详情"
     >
       <template v-if="selectedQuestion">
         <header class="drawer-head">
           <span class="question-author">
-            <span class="mini-avatar" :style="{ background: selectedQuestion.profile?.bg }">
-              <img :src="selectedQuestion.profile?.iconBase64" class="owner-avatar-img" alt="" />
+            <span
+              class="mini-avatar"
+              :style="avatarStyle(selectedIsPublished && selectedQuestion.ownerAvatar ? selectedQuestion.ownerAvatar : selectedQuestion.profile)"
+            >
+              <img
+                v-if="avatarSrc(selectedIsPublished && selectedQuestion.ownerAvatar ? selectedQuestion.ownerAvatar : selectedQuestion.profile)"
+                :src="avatarSrc(selectedIsPublished && selectedQuestion.ownerAvatar ? selectedQuestion.ownerAvatar : selectedQuestion.profile)"
+                alt=""
+                @load="scheduleGlassRefresh()"
+              />
             </span>
           </span>
           <button class="drawer-close" type="button" aria-label="关闭详情" @click="closeDrawer">
@@ -651,7 +780,7 @@ onBeforeUnmount(() => {
   background: #0c0f14;
   color: #fff;
   font-family: inherit;
-  --stage-width: min(1160px, calc(100vw - 48px));
+  --stage-width: min(920px, calc(100vw - 48px));
   --stage-left: calc((100vw - var(--stage-width)) / 2);
 }
 
@@ -701,15 +830,34 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
+  border: 0;
   border-radius: 50%;
+  background-position: center;
+  background-size: cover;
   color: #fff;
 }
 
 .owner-avatar {
   width: 46px;
   height: 46px;
+  padding: 0;
   background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
   font-size: 23px;
+  overflow: hidden;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.owner-avatar:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: scale(1.04);
+}
+
+.owner-avatar:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.78);
+  outline-offset: 3px;
 }
 
 .mini-avatar {
@@ -719,11 +867,21 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.owner-avatar-img {
+.owner-avatar img,
+.mini-avatar img {
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
-  border-radius: 50%;
+  clip-path: circle(50%);
+}
+
+.hidden-file-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .owner-identity strong,
@@ -789,7 +947,7 @@ onBeforeUnmount(() => {
   bottom: 24px;
   z-index: 3;
   display: grid;
-  width: min(760px, var(--stage-width));
+  width: var(--stage-width);
   grid-template-columns: 116px minmax(0, 1fr);
   gap: 24px;
   transition:
@@ -877,7 +1035,7 @@ onBeforeUnmount(() => {
   height: calc(100% - 96px);
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 2px 8px 80px 0;
+  padding: 2px 8px 120px 0;
   scrollbar-width: none;
   overscroll-behavior: contain;
 }
@@ -1015,10 +1173,10 @@ onBeforeUnmount(() => {
 .settings-panel {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
 }
 
-.settings-panel label {
+.settings-panel > label {
   display: grid;
   gap: 7px;
   color: rgba(255, 255, 255, 0.64);
@@ -1030,7 +1188,7 @@ onBeforeUnmount(() => {
 .settings-panel textarea {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.26);
-  border-radius: 18px;
+  border-radius: 16px;
   outline: none;
   padding: 13px 15px;
   background: rgba(0, 0, 0, 0.2);
@@ -1041,10 +1199,18 @@ onBeforeUnmount(() => {
   resize: none;
 }
 
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 max(28px, env(safe-area-inset-bottom));
+}
+
 .settings-save {
-  justify-self: start;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 42px;
   margin-top: 6px;
@@ -1059,6 +1225,66 @@ onBeforeUnmount(() => {
 .settings-save.secondary {
   background: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.9);
+}
+
+.media-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.media-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.media-setting > span {
+  grid-column: 1 / -1;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-self: stretch;
+}
+
+.file-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.media-actions .file-button,
+.media-actions .plain-action {
+  min-width: 132px;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .drawer-scrim {
@@ -1086,19 +1312,19 @@ onBeforeUnmount(() => {
 }
 
 .owner-drawer {
-  top: 126px;
-  right: var(--stage-left);
+  top: 50%;
+  left: 50%;
   z-index: 16;
-  width: min(390px, calc(100vw - 48px));
-  max-height: calc(100vh - 150px);
-  max-height: calc(100dvh - 150px);
+  width: min(560px, calc(100vw - 48px));
+  max-height: min(680px, calc(100vh - 92px));
+  max-height: min(680px, calc(100dvh - 92px));
   padding: 20px;
   border-radius: 34px;
   color: rgba(255, 255, 255, 0.94);
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(28px) scale(0.96);
+  transform: translate(-50%, -46%) scale(0.94);
   transition:
     opacity 220ms ease,
     transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -1107,7 +1333,7 @@ onBeforeUnmount(() => {
 .owner-drawer.visible {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0) scale(1);
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .owner-drawer::before {
@@ -1165,7 +1391,8 @@ onBeforeUnmount(() => {
 
 .answer-editor textarea {
   width: 100%;
-  min-height: 210px;
+  min-height: 190px;
+  max-height: min(42vh, 300px);
   border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 26px;
   outline: none;
@@ -1352,16 +1579,8 @@ onBeforeUnmount(() => {
   }
 
   .owner-drawer {
-    top: auto;
-    right: 18px;
-    bottom: 18px;
     width: calc(100vw - 36px);
     max-height: min(76vh, 680px);
-    transform: translateY(28px) scale(0.96);
-  }
-
-  .owner-drawer.visible {
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -1377,6 +1596,10 @@ onBeforeUnmount(() => {
 
   .owner-summary {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .media-setting {
+    grid-template-columns: 1fr;
   }
 
   .metric-block {

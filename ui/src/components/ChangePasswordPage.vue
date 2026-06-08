@@ -315,10 +315,18 @@ onBeforeUnmount(() => {
   left: 50%;
   z-index: 2;
   width: min(440px, calc(100vw - 36px));
-  padding: 26px;
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 26px 26px max(30px, env(safe-area-inset-bottom));
   border-radius: 42px;
   color: rgba(255, 255, 255, 0.94);
   transform: translate(-50%, -50%);
+  scrollbar-width: none;
+}
+
+.password-panel::-webkit-scrollbar {
+  display: none;
 }
 
 .password-panel::before {
@@ -455,7 +463,23 @@ onBeforeUnmount(() => {
 @media (max-width: 560px) {
   .password-panel {
     width: calc(100vw - 28px);
-    padding: 22px;
+    max-height: calc(100dvh - 20px);
+    padding: 22px 22px max(28px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-height: 680px) {
+  .password-panel {
+    padding: 20px 20px max(26px, env(safe-area-inset-bottom));
+  }
+
+  .password-head {
+    margin-top: 14px;
+    margin-bottom: 16px;
+  }
+
+  .password-form {
+    gap: 10px;
   }
 }
 </style>

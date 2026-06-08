@@ -13,6 +13,11 @@ const routes = [
     component: () => import('../components/LoginPage.vue'),
   },
   {
+    path: '/register',
+    name: 'register',
+    component: () => import('../components/RegisterPage.vue'),
+  },
+  {
     path: '/unauthorized',
     name: 'unauthorized',
     component: () => import('../components/UnauthorizedPage.vue'),
@@ -62,9 +67,14 @@ const routes = [
         component: () => import('../components/admin/QuestionList.vue'),
       },
       {
-        path: 'avatars',
-        name: 'admin-avatars',
-        component: () => import('../components/admin/AvatarList.vue'),
+        path: 'attachments',
+        name: 'admin-attachments',
+        component: () => import('../components/admin/AttachmentList.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'admin-settings',
+        component: () => import('../components/admin/SettingsPage.vue'),
       },
       {
         path: 'roles',

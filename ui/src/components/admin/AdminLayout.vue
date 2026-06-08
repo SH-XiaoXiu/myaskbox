@@ -12,7 +12,8 @@ const tabs = [
   { path: '/admin/users', icon: 'ri-user-settings-line', label: '用户' },
   { path: '/admin/boxes', icon: 'ri-mail-send-line', label: '提问箱' },
   { path: '/admin/questions', icon: 'ri-question-answer-line', label: '问题' },
-  { path: '/admin/avatars', icon: 'ri-emotion-line', label: '头像' },
+  { path: '/admin/attachments', icon: 'ri-attachment-2', label: '附件' },
+  { path: '/admin/settings', icon: 'ri-settings-3-line', label: '设置' },
   { path: '/admin/roles', icon: 'ri-shield-keyhole-line', label: '权限' },
 ]
 

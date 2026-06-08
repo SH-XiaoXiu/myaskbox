@@ -6,6 +6,9 @@ export const getBoxProfile = () => api.get('/box/profile')
 /** PUT /api/box/profile */
 export const updateBoxProfile = (data) => api.put('/box/profile', data)
 
+/** GET /api/box/stats */
+export const getBoxStats = (zone = 'Asia/Shanghai') => api.get('/box/stats', { params: { zone } })
+
 /** GET /api/box/questions/pending */
 export const getPendingQuestions = (page = 1, pageSize = 20) =>
   api.get('/box/questions/pending', { params: { page, pageSize } })
