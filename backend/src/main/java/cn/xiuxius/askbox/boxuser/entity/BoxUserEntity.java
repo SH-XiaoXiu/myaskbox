@@ -21,6 +21,8 @@ public class BoxUserEntity implements Serializable {
     private String slug;
     private String displayName;
     private String description;
+    private Long avatarAttachmentId;
+    private Long backgroundAttachmentId;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

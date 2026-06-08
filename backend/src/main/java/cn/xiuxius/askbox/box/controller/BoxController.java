@@ -17,6 +17,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import cn.xiuxius.askbox.box.request.BoxProfileUpdateRequest;
 import cn.xiuxius.askbox.boxuser.service.BoxUserService;
 import cn.xiuxius.askbox.boxuser.view.BoxProfileView;
+import cn.xiuxius.askbox.boxuser.view.BoxStatsView;
 import cn.xiuxius.askbox.common.PageResult;
 import cn.xiuxius.askbox.common.R;
 import cn.xiuxius.askbox.common.RequestLogFilter;
@@ -61,8 +62,16 @@ public class BoxController {
                 userId,
                 request.getSlug(),
                 request.getDisplayName(),
-                request.getDescription() == null ? "" : request.getDescription());
+                request.getDescription() == null ? "" : request.getDescription(),
+                request.getAvatarBase64(),
+                request.getBackgroundBase64());
         return R.ok(updated);
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "获取我的提问箱统计")
+    public R<BoxStatsView> stats(@RequestParam(defaultValue = "Asia/Shanghai") String zone) {
+        return R.ok(boxUserService.getStats(StpUtil.getLoginIdAsLong(), zone));
     }
 
     @GetMapping("/questions/pending")

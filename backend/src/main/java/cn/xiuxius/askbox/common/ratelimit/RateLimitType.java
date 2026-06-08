@@ -8,6 +8,8 @@ public enum RateLimitType {
     IP,
     /** 按已登录用户 ID。 */
     USER,
+    /** 按 User-Agent。 */
+    USER_AGENT,
     /** 自定义 key（通过 SpEL 表达式指定）。 */
     CUSTOM
 }

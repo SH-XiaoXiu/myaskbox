@@ -77,13 +77,18 @@ public class SysUserServiceImpl implements SysUserService {
     @Override
     @Transactional
     public SysUserEntity createUser(String username, String rawPassword, String displayName, String email) {
+        String normalizedEmail = email == null ? null : email.trim().toLowerCase();
         if (sysUserRepository.findByUsername(username) != null)
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "用户名已存在");
+        if (normalizedEmail != null
+                && !normalizedEmail.isBlank()
+                && sysUserRepository.findByEmail(normalizedEmail) != null)
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱已存在");
         SysUserEntity user = new SysUserEntity()
                 .setUsername(username)
                 .setPasswordHash(BCrypt.hashpw(rawPassword, BCrypt.gensalt()))
                 .setDisplayName(displayName)
-                .setEmail(email)
+                .setEmail(normalizedEmail)
                 .setStatus("ACTIVE");
         sysUserRepository.insert(user);
         assignRoles(user.getId(), List.of("BOX_OWNER"));
@@ -95,7 +100,12 @@ public class SysUserServiceImpl implements SysUserService {
     @Transactional
     public void updateUser(Long id, String displayName, String email) {
         SysUserEntity user = getById(id);
-        user.setDisplayName(displayName).setEmail(email);
+        String normalizedEmail = email == null ? null : email.trim().toLowerCase();
+        SysUserEntity sameEmailUser = sysUserRepository.findByEmail(normalizedEmail);
+        if (sameEmailUser != null && !sameEmailUser.getId().equals(id)) {
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱已存在");
+        }
+        user.setDisplayName(displayName).setEmail(normalizedEmail);
         sysUserRepository.update(user);
     }
 

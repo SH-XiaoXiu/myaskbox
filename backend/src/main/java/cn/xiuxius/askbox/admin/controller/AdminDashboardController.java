@@ -4,7 +4,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import cn.xiuxius.askbox.avatar.repository.AvatarRepository;
+import cn.xiuxius.askbox.attachment.repository.AttachmentRepository;
 import cn.xiuxius.askbox.boxuser.repository.BoxUserRepository;
 import cn.xiuxius.askbox.common.R;
 import cn.xiuxius.askbox.question.repository.QuestionRepository;
@@ -25,7 +25,7 @@ public class AdminDashboardController {
     private final SysUserRepository sysUserRepository;
     private final BoxUserRepository boxUserRepository;
     private final QuestionRepository questionRepository;
-    private final AvatarRepository avatarRepository;
+    private final AttachmentRepository attachmentRepository;
 
     @GetMapping("/stats")
     @Operation(summary = "仪表盘统计", description = "返回用户数、提问箱数、问题数、头像数。")
@@ -34,6 +34,6 @@ public class AdminDashboardController {
                 sysUserRepository.countAll(),
                 boxUserRepository.countAll(),
                 questionRepository.countAll(),
-                avatarRepository.countAll()));
+                attachmentRepository.countAll()));
     }
 }

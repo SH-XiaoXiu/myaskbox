@@ -70,6 +70,9 @@ askbox.rate-limit:
   user.capacity: 50
   user.refill-tokens: 50
   user.time-window-seconds: 60
+  ua.capacity: 80
+  ua.refill-tokens: 80
+  ua.time-window-seconds: 60
   custom.capacity: 60
   custom.refill-tokens: 60
   custom.time-window-seconds: 60

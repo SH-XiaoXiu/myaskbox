@@ -6,6 +6,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 
 /**
  * 根据限流类型生成对应的 Redis/Caffeine key。
@@ -34,6 +35,7 @@ public class RateLimitKeyGenerator {
             case GLOBAL -> keyPrefix + ":global:" + endpoint;
             case IP -> keyPrefix + ":ip:" + endpoint + ":" + resolveClientIp();
             case USER -> keyPrefix + ":user:" + endpoint + ":" + resolveUserId();
+            case USER_AGENT -> keyPrefix + ":ua:" + endpoint + ":" + resolveUserAgentHash();
             case CUSTOM -> keyPrefix
                     + ":custom:"
                     + endpoint
@@ -70,6 +72,18 @@ public class RateLimitKeyGenerator {
         } catch (Exception e) {
             return "anonymous";
         }
+    }
+
+    private String resolveUserAgentHash() {
+        HttpServletRequest request = currentRequest();
+        if (request == null) {
+            return "unknown";
+        }
+        String ua = request.getHeader("User-Agent");
+        if (ua == null || ua.isBlank()) {
+            return "unknown";
+        }
+        return DigestUtil.sha256Hex(ua);
     }
 
     private HttpServletRequest currentRequest() {

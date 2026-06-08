@@ -21,10 +21,12 @@ public class SaTokenConfig implements WebMvcConfigurer {
 
     private static final List<String> SA_TOKEN_EXCLUDE = List.of(
             "/api/boxes/**",
-            "/api/avatars",
+            "/api/attachments/anonymous-avatars",
             "/api/health",
             "/api/admin/login",
             "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/register/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/doc.html",

@@ -36,7 +36,12 @@ public class QuestionController {
 
     @PostMapping
     @Operation(summary = "提交匿名问题", description = "向指定提问箱提交一个匿名问题。需选择预设头像。")
-    @RateLimit(types = RateLimitType.IP, capacity = 30, refillTokens = 30, timeWindowSeconds = 60)
+    @RateLimit(
+            types = {RateLimitType.IP, RateLimitType.USER_AGENT, RateLimitType.CUSTOM},
+            key = "#slug",
+            capacity = 30,
+            refillTokens = 30,
+            timeWindowSeconds = 60)
     public R<Void> submit(
             @Parameter(description = "提问箱 slug") @PathVariable String slug,
             @Valid @RequestBody SubmitQuestionRequest request,
@@ -44,7 +49,7 @@ public class QuestionController {
         // 获取客户端 IP 和 User-Agent 用于审计
         String ip = RequestLogFilter.resolveClientIp(httpRequest);
         String ua = httpRequest.getHeader("User-Agent");
-        questionService.submit(slug, request.getAvatarId(), request.getQuestion(), ip, ua);
+        questionService.submit(slug, request.getAttachmentId(), request.getQuestion(), ip, ua);
         return R.ok();
     }
 

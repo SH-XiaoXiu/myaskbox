@@ -33,7 +33,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("public")
                 .displayName("公开接口")
-                .pathsToMatch("/api/boxes/**", "/api/avatars", "/api/health")
+                .pathsToMatch("/api/boxes/**", "/api/attachments/**", "/api/health")
                 .build();
     }
 

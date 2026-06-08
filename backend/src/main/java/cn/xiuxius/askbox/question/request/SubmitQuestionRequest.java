@@ -9,7 +9,7 @@ import lombok.Data;
 @Data
 public class SubmitQuestionRequest {
     @NotNull(message = "请选择一个头像")
-    private Long avatarId;
+    private Long attachmentId;
 
     @NotBlank(message = "问题不能为空")
     @Size(min = 1, max = 350, message = "问题长度为1-350个字符")

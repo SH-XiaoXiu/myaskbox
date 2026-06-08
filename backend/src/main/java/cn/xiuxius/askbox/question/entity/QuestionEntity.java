@@ -23,8 +23,8 @@ public class QuestionEntity implements Serializable {
     @TableField("box_user_id")
     private Long boxUserId;
 
-    @TableField("avatar_id")
-    private Long avatarId;
+    @TableField("attachment_id")
+    private Long attachmentId;
 
     private String question;
     private QuestionStatus status;

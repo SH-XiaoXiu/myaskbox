@@ -28,6 +28,7 @@ public class RateLimitProperties {
     private RuleConfig global = new RuleConfig(1000, 1000, 60);
     private RuleConfig ip = new RuleConfig(100, 100, 60);
     private RuleConfig user = new RuleConfig(50, 50, 60);
+    private RuleConfig ua = new RuleConfig(80, 80, 60);
     private RuleConfig custom = new RuleConfig(60, 60, 60);
 
     /** 根据限流类型获取默认规则配置。 */
@@ -36,6 +37,7 @@ public class RateLimitProperties {
             case GLOBAL -> global;
             case IP -> ip;
             case USER -> user;
+            case USER_AGENT -> ua;
             case CUSTOM -> custom;
         };
     }

@@ -16,8 +16,10 @@ public enum ErrorCodes implements BizErrorCode {
     QUESTION_NOT_FOUND(20001, "问题不存在"),
     QUESTION_STATUS_INVALID(20002, "问题状态不允许此操作"),
     BOX_NOT_FOUND(20003, "提问箱不存在"),
-    AVATAR_NOT_FOUND(20004, "头像不存在"),
-    USER_NOT_FOUND(20005, "用户不存在");
+    ATTACHMENT_NOT_FOUND(20004, "附件不存在"),
+    USER_NOT_FOUND(20005, "用户不存在"),
+    REGISTER_DISABLED(20006, "当前未开放注册"),
+    EMAIL_CODE_INVALID(20007, "邮箱验证码错误或已过期");
 
     private final int code;
     private final String message;

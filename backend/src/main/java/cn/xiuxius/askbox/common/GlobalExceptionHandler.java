@@ -132,7 +132,8 @@ public class GlobalExceptionHandler {
         return switch (code / 1000) {
             case 10 -> {
                 if (code == 10001) yield HttpStatus.BAD_REQUEST;
-                if (code == 10002 || code == 10004) yield HttpStatus.NOT_FOUND;
+                if (code == 10002) yield HttpStatus.NOT_FOUND;
+                if (code == 10004) yield HttpStatus.TOO_MANY_REQUESTS;
                 yield HttpStatus.INTERNAL_SERVER_ERROR;
             }
             case 11 -> code == ErrorCodes.FORBIDDEN.code() ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED;

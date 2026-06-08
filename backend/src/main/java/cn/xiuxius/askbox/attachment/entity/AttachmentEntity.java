@@ -1,4 +1,4 @@
-package cn.xiuxius.askbox.avatar.entity;
+package cn.xiuxius.askbox.attachment.entity;
 
 import java.io.Serializable;
 import java.time.OffsetDateTime;
@@ -7,21 +7,31 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import cn.xiuxius.askbox.attachment.enums.AttachmentStorageType;
+import cn.xiuxius.askbox.attachment.enums.AttachmentUsageType;
+
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-@TableName("avatars")
+@TableName("attachments")
 @Data
 @Accessors(chain = true)
-public class AvatarEntity implements Serializable {
+public class AttachmentEntity implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     private String name;
-    private String iconBase64;
+    private AttachmentUsageType usageType;
+    private AttachmentStorageType storageType;
+    private String contentBase64;
+    private String mimeType;
+    private Long sizeBytes;
+    private String sha256;
     private String bg;
     private Integer sortOrder;
     private Boolean isActive;
+    private String ownerType;
+    private Long ownerId;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

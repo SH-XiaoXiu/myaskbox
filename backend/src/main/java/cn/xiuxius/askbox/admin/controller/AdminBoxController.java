@@ -53,6 +53,8 @@ public class AdminBoxController {
                 id,
                 request.getSlug(),
                 request.getDisplayName(),
-                request.getDescription() == null ? "" : request.getDescription()));
+                request.getDescription() == null ? "" : request.getDescription(),
+                request.getAvatarBase64(),
+                request.getBackgroundBase64()));
     }
 }

@@ -2,5 +2,14 @@ package cn.xiuxius.askbox.boxuser.view;
 
 import java.time.OffsetDateTime;
 
+import cn.xiuxius.askbox.attachment.view.AttachmentView;
+
 public record BoxProfileView(
-        Long id, Long userId, String slug, String displayName, String description, OffsetDateTime createdAt) {}
+        Long id,
+        Long userId,
+        String slug,
+        String displayName,
+        String description,
+        AttachmentView avatar,
+        AttachmentView background,
+        OffsetDateTime createdAt) {}

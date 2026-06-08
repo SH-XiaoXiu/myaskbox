@@ -13,8 +13,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import cn.xiuxius.askbox.answer.entity.AnswerEntity;
 import cn.xiuxius.askbox.answer.service.AnswerService;
-import cn.xiuxius.askbox.avatar.entity.AvatarEntity;
-import cn.xiuxius.askbox.avatar.repository.AvatarRepository;
+import cn.xiuxius.askbox.attachment.enums.AttachmentUsageType;
+import cn.xiuxius.askbox.attachment.service.AttachmentService;
+import cn.xiuxius.askbox.attachment.view.AttachmentView;
 import cn.xiuxius.askbox.boxuser.entity.BoxUserEntity;
 import cn.xiuxius.askbox.boxuser.repository.BoxUserRepository;
 import cn.xiuxius.askbox.boxuser.service.BoxUserService;
@@ -52,20 +53,22 @@ public class QuestionServiceImpl implements QuestionService {
     private final BoxUserService boxUserService;
     private final BoxUserRepository boxUserRepository;
     private final AnswerService answerService;
-    private final AvatarRepository avatarRepository;
+    private final AttachmentService attachmentService;
 
     @Override
     @Transactional
-    public void submit(String slug, Long avatarId, String question, String ip, String userAgent) {
+    public void submit(String slug, Long attachmentId, String question, String ip, String userAgent) {
         // 1. 通过 slug 找到提问箱
         BoxUserEntity box = boxUserService.getBySlug(slug);
-        if (avatarRepository.findById(avatarId) == null) {
-            throw new BizException(ErrorCodes.AVATAR_NOT_FOUND);
+        AttachmentView attachment = attachmentService.getById(attachmentId);
+        if (attachment.usageType() != AttachmentUsageType.ANONYMOUS_AVATAR
+                || !Boolean.TRUE.equals(attachment.isActive())) {
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "请选择有效的匿名头像附件");
         }
         // 2. 创建 PENDING 问题
         QuestionEntity q = new QuestionEntity()
                 .setBoxUserId(box.getId())
-                .setAvatarId(avatarId)
+                .setAttachmentId(attachmentId)
                 .setQuestion(question)
                 .setStatus(QuestionStatus.PENDING)
                 .setIp(ip)
@@ -197,13 +200,17 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     private QuestionView toQuestionView(QuestionEntity q, AnswerEntity answer) {
-        AvatarEntity avatar = avatarRepository.findById(q.getAvatarId());
-        return QuestionAssembler.toQuestionView(q, avatar, answer);
+        AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
+        BoxUserEntity box = boxUserRepository.findById(q.getBoxUserId());
+        AttachmentView ownerAvatar = box != null && box.getAvatarAttachmentId() != null
+                ? attachmentService.getById(box.getAvatarAttachmentId())
+                : null;
+        return QuestionAssembler.toQuestionView(q, avatar, answer, ownerAvatar);
     }
 
     /** 构建待审问题视图（无回答）。 */
     private PendingQuestionView toPendingView(QuestionEntity q) {
-        AvatarEntity avatar = avatarRepository.findById(q.getAvatarId());
+        AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
         return QuestionAssembler.toPendingView(q, avatar);
     }
 

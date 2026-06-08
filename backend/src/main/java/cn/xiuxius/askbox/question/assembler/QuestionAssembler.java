@@ -3,8 +3,7 @@ package cn.xiuxius.askbox.question.assembler;
 import java.time.OffsetDateTime;
 
 import cn.xiuxius.askbox.answer.entity.AnswerEntity;
-import cn.xiuxius.askbox.avatar.assembler.AvatarAssembler;
-import cn.xiuxius.askbox.avatar.entity.AvatarEntity;
+import cn.xiuxius.askbox.attachment.view.AttachmentView;
 import cn.xiuxius.askbox.question.entity.QuestionEntity;
 import cn.xiuxius.askbox.question.view.AdminQuestionView;
 import cn.xiuxius.askbox.question.view.PendingQuestionView;
@@ -14,24 +13,26 @@ public final class QuestionAssembler {
 
     private QuestionAssembler() {}
 
-    public static PendingQuestionView toPendingView(QuestionEntity question, AvatarEntity avatar) {
+    public static PendingQuestionView toPendingView(QuestionEntity question, AttachmentView avatar) {
         return new PendingQuestionView(
                 question.getId(),
-                AvatarAssembler.toView(avatar),
+                avatar,
                 question.getQuestion(),
                 toEpochMillis(question.getCreatedAt(), question.getUpdatedAt()));
     }
 
-    public static QuestionView toQuestionView(QuestionEntity question, AvatarEntity avatar, AnswerEntity answer) {
+    public static QuestionView toQuestionView(
+            QuestionEntity question, AttachmentView avatar, AnswerEntity answer, AttachmentView ownerAvatar) {
         OffsetDateTime fallback = question.getUpdatedAt() != null ? question.getUpdatedAt() : question.getCreatedAt();
         long ts = answer != null
                 ? toEpochMillis(answer.getCreatedAt(), fallback)
                 : toEpochMillis(question.getCreatedAt(), fallback);
         return new QuestionView(
                 question.getId(),
-                AvatarAssembler.toView(avatar),
+                avatar,
                 question.getQuestion(),
                 answer != null ? answer.getContent() : null,
+                ownerAvatar,
                 ts);
     }
 

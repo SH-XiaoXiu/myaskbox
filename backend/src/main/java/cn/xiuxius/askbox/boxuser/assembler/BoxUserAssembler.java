@@ -1,5 +1,6 @@
 package cn.xiuxius.askbox.boxuser.assembler;
 
+import cn.xiuxius.askbox.attachment.view.AttachmentView;
 import cn.xiuxius.askbox.boxuser.entity.BoxUserEntity;
 import cn.xiuxius.askbox.boxuser.view.BoxProfileView;
 import cn.xiuxius.askbox.boxuser.view.BoxView;
@@ -9,7 +10,7 @@ public final class BoxUserAssembler {
 
     private BoxUserAssembler() {}
 
-    public static BoxProfileView toProfileView(BoxUserEntity entity) {
+    public static BoxProfileView toProfileView(BoxUserEntity entity, AttachmentView avatar, AttachmentView background) {
         if (entity == null) {
             return null;
         }
@@ -19,14 +20,18 @@ public final class BoxUserAssembler {
                 entity.getSlug(),
                 entity.getDisplayName(),
                 entity.getDescription(),
+                avatar,
+                background,
                 entity.getCreatedAt());
     }
 
-    public static PublicBoxProfileView toPublicProfileView(BoxUserEntity entity) {
+    public static PublicBoxProfileView toPublicProfileView(
+            BoxUserEntity entity, AttachmentView avatar, AttachmentView background) {
         if (entity == null) {
             return null;
         }
-        return new PublicBoxProfileView(entity.getSlug(), entity.getDisplayName(), entity.getDescription());
+        return new PublicBoxProfileView(
+                entity.getSlug(), entity.getDisplayName(), entity.getDescription(), avatar, background);
     }
 
     public static BoxView toAdminView(BoxUserEntity entity, String username, long questionCount) {

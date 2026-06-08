@@ -1,20 +1,28 @@
 package cn.xiuxius.askbox.boxuser.service;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
+import cn.xiuxius.askbox.attachment.enums.AttachmentUsageType;
+import cn.xiuxius.askbox.attachment.service.AttachmentService;
+import cn.xiuxius.askbox.attachment.view.AttachmentView;
 import cn.xiuxius.askbox.boxuser.assembler.BoxUserAssembler;
 import cn.xiuxius.askbox.boxuser.entity.BoxUserEntity;
 import cn.xiuxius.askbox.boxuser.repository.BoxUserRepository;
 import cn.xiuxius.askbox.boxuser.view.BoxProfileView;
+import cn.xiuxius.askbox.boxuser.view.BoxStatsView;
 import cn.xiuxius.askbox.boxuser.view.BoxView;
 import cn.xiuxius.askbox.boxuser.view.PublicBoxProfileView;
 import cn.xiuxius.askbox.common.BizException;
 import cn.xiuxius.askbox.common.ErrorCodes;
 import cn.xiuxius.askbox.common.PageResult;
+import cn.xiuxius.askbox.question.enums.QuestionStatus;
 import cn.xiuxius.askbox.question.repository.QuestionRepository;
 import cn.xiuxius.askbox.system.entity.SysUserEntity;
 import cn.xiuxius.askbox.system.repository.SysUserRepository;
@@ -29,6 +37,7 @@ public class BoxUserServiceImpl implements BoxUserService {
     private final BoxUserRepository repo;
     private final SysUserRepository sysUserRepository;
     private final QuestionRepository questionRepository;
+    private final AttachmentService attachmentService;
 
     @Override
     public BoxUserEntity getBySlug(String slug) {
@@ -60,17 +69,31 @@ public class BoxUserServiceImpl implements BoxUserService {
     public BoxProfileView getProfileByUserId(Long userId) {
         BoxUserEntity b = repo.findByUserId(userId);
         if (b == null) throw new BizException(ErrorCodes.BOX_NOT_FOUND, "当前用户没有提问箱");
-        return BoxUserAssembler.toProfileView(b);
+        return toProfileView(b);
     }
 
     @Override
     public BoxProfileView getProfileById(Long id) {
-        return BoxUserAssembler.toProfileView(getById(id));
+        return toProfileView(getById(id));
     }
 
     @Override
     public PublicBoxProfileView getPublicProfileBySlug(String slug) {
-        return BoxUserAssembler.toPublicProfileView(getBySlug(slug));
+        return toPublicProfileView(getBySlug(slug));
+    }
+
+    @Override
+    public BoxStatsView getStats(Long userId, String zoneId) {
+        BoxUserEntity b = repo.findByUserId(userId);
+        if (b == null) throw new BizException(ErrorCodes.BOX_NOT_FOUND, "当前用户没有提问箱");
+        ZoneId zone = parseZone(zoneId);
+        OffsetDateTime start =
+                OffsetDateTime.now(zone).toLocalDate().atStartOfDay(zone).toOffsetDateTime();
+        return new BoxStatsView(
+                questionRepository.countByBoxUserIdAndStatus(b.getId(), QuestionStatus.PENDING),
+                questionRepository.countByBoxUserIdAndStatus(b.getId(), QuestionStatus.PUBLISHED),
+                questionRepository.countByBoxUserIdAndStatus(b.getId(), QuestionStatus.DISMISSED),
+                questionRepository.countByBoxUserIdCreatedAtAfter(b.getId(), start));
     }
 
     @Override
@@ -86,16 +109,31 @@ public class BoxUserServiceImpl implements BoxUserService {
 
     @Override
     @Transactional
-    public BoxProfileView updateBox(Long userId, String slug, String displayName, String description) {
+    public BoxProfileView updateBox(
+            Long userId,
+            String slug,
+            String displayName,
+            String description,
+            String avatarBase64,
+            String backgroundBase64) {
         BoxUserEntity b = repo.findByUserId(userId);
         if (b == null) throw new BizException(ErrorCodes.BOX_NOT_FOUND);
+        updateAttachments(b, avatarBase64, backgroundBase64);
         return updateBoxEntity(b, slug, displayName, description);
     }
 
     @Override
     @Transactional
-    public BoxProfileView updateBoxById(Long id, String slug, String displayName, String description) {
-        return updateBoxEntity(getById(id), slug, displayName, description);
+    public BoxProfileView updateBoxById(
+            Long id,
+            String slug,
+            String displayName,
+            String description,
+            String avatarBase64,
+            String backgroundBase64) {
+        BoxUserEntity b = getById(id);
+        updateAttachments(b, avatarBase64, backgroundBase64);
+        return updateBoxEntity(b, slug, displayName, description);
     }
 
     private BoxProfileView updateBoxEntity(BoxUserEntity b, String slug, String displayName, String description) {
@@ -107,7 +145,7 @@ public class BoxUserServiceImpl implements BoxUserService {
                 .setDisplayName(displayName == null ? "" : displayName.trim())
                 .setDescription(description == null ? "" : description.trim());
         repo.update(b);
-        return BoxUserAssembler.toProfileView(b);
+        return toProfileView(b);
     }
 
     @Override
@@ -123,5 +161,59 @@ public class BoxUserServiceImpl implements BoxUserService {
                 .setDescription(description);
         repo.insert(b);
         return b;
+    }
+
+    private void updateAttachments(BoxUserEntity b, String avatarBase64, String backgroundBase64) {
+        if (avatarBase64 != null) {
+            if (avatarBase64.isBlank()) {
+                b.setAvatarAttachmentId(null);
+            } else {
+                AttachmentView avatar = attachmentService.createOwnedImage(
+                        "box-avatar-" + b.getId(),
+                        AttachmentUsageType.BOX_OWNER_AVATAR,
+                        avatarBase64,
+                        "BOX_USER",
+                        b.getId());
+                b.setAvatarAttachmentId(avatar.id());
+            }
+        }
+        if (backgroundBase64 != null) {
+            if (backgroundBase64.isBlank()) {
+                b.setBackgroundAttachmentId(null);
+            } else {
+                AttachmentView background = attachmentService.createOwnedImage(
+                        "box-background-" + b.getId(),
+                        AttachmentUsageType.BOX_BACKGROUND,
+                        backgroundBase64,
+                        "BOX_USER",
+                        b.getId());
+                b.setBackgroundAttachmentId(background.id());
+            }
+        }
+    }
+
+    private BoxProfileView toProfileView(BoxUserEntity b) {
+        return BoxUserAssembler.toProfileView(
+                b, attachmentOrNull(b.getAvatarAttachmentId()), attachmentOrNull(b.getBackgroundAttachmentId()));
+    }
+
+    private PublicBoxProfileView toPublicProfileView(BoxUserEntity b) {
+        return BoxUserAssembler.toPublicProfileView(
+                b, attachmentOrNull(b.getAvatarAttachmentId()), attachmentOrNull(b.getBackgroundAttachmentId()));
+    }
+
+    private AttachmentView attachmentOrNull(Long id) {
+        return id == null ? null : attachmentService.getById(id);
+    }
+
+    private ZoneId parseZone(String zoneId) {
+        if (zoneId == null || zoneId.isBlank()) {
+            return ZoneId.systemDefault();
+        }
+        try {
+            return ZoneId.of(zoneId);
+        } catch (RuntimeException ex) {
+            return ZoneId.systemDefault();
+        }
     }
 }

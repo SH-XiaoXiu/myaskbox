@@ -6,7 +6,7 @@ import cn.xiuxius.askbox.question.view.PendingQuestionView;
 import cn.xiuxius.askbox.question.view.QuestionView;
 
 public interface QuestionService {
-    void submit(String slug, Long avatarId, String question, String ip, String userAgent);
+    void submit(String slug, Long attachmentId, String question, String ip, String userAgent);
 
     PageResult<QuestionView> getPublished(String slug, long page, long pageSize);
 

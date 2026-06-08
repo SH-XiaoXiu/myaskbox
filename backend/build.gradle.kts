@@ -25,11 +25,13 @@ val knife4jVersion = "4.5.0"
 val saTokenVersion = "1.41.0"
 val palantirJavaFormatVersion = "2.50.0"
 val bucket4jVersion = "8.19.0"
+val hutoolVersion = "5.8.46"
 
 dependencies {
     // Web
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-mail")
 
     // MyBatis-Plus
     implementation("com.baomidou:mybatis-plus-spring-boot3-starter:$mybatisPlusVersion")
@@ -60,6 +62,7 @@ dependencies {
     implementation("org.springframework.security:spring-security-crypto")
 
     // Utilities
+    implementation("cn.hutool:hutool-all:$hutoolVersion")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 

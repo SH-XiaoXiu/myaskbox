@@ -11,9 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import cn.xiuxius.askbox.auth.request.ChangePasswordRequest;
 import cn.xiuxius.askbox.auth.request.LoginRequest;
+import cn.xiuxius.askbox.auth.request.RegisterCodeRequest;
+import cn.xiuxius.askbox.auth.request.RegisterRequest;
 import cn.xiuxius.askbox.auth.service.AuthService;
 import cn.xiuxius.askbox.auth.view.LoginView;
 import cn.xiuxius.askbox.auth.view.MeView;
+import cn.xiuxius.askbox.auth.view.RegisterConfigView;
 import cn.xiuxius.askbox.common.R;
 import cn.xiuxius.askbox.common.ratelimit.RateLimit;
 import cn.xiuxius.askbox.common.ratelimit.RateLimitType;
@@ -41,6 +44,43 @@ public class AuthController {
             timeWindowSeconds = 60)
     public R<LoginView> login(@Valid @RequestBody LoginRequest request) {
         return R.ok(authService.login(request.getUsername(), request.getPassword()));
+    }
+
+    @GetMapping("/register/config")
+    @Operation(summary = "获取注册配置", description = "返回当前是否开放邮箱验证码注册。")
+    public R<RegisterConfigView> registerConfig() {
+        return R.ok(authService.registerConfig());
+    }
+
+    @PostMapping("/register/code")
+    @Operation(summary = "发送注册邮箱验证码", description = "开放注册时向邮箱发送验证码。")
+    @RateLimit(
+            types = {RateLimitType.IP, RateLimitType.USER_AGENT, RateLimitType.CUSTOM},
+            key = "#request.email",
+            capacity = 5,
+            refillTokens = 5,
+            timeWindowSeconds = 60)
+    public R<Void> sendRegisterCode(@Valid @RequestBody RegisterCodeRequest request) {
+        authService.sendRegisterCode(request.getEmail());
+        return R.ok();
+    }
+
+    @PostMapping("/register")
+    @Operation(summary = "邮箱验证码注册", description = "验证码通过后创建箱主账号并自动登录。")
+    @RateLimit(
+            types = {RateLimitType.IP, RateLimitType.USER_AGENT, RateLimitType.CUSTOM},
+            key = "#request.email",
+            capacity = 10,
+            refillTokens = 10,
+            timeWindowSeconds = 60)
+    public R<LoginView> register(@Valid @RequestBody RegisterRequest request) {
+        return R.ok(authService.register(
+                request.getUsername(),
+                request.getPassword(),
+                request.getConfirmPassword(),
+                request.getEmail(),
+                request.getCode(),
+                request.getDisplayName()));
     }
 
     @GetMapping("/me")

@@ -1,5 +1,5 @@
 package cn.xiuxius.askbox.question.view;
 
-import cn.xiuxius.askbox.avatar.view.AvatarView;
+import cn.xiuxius.askbox.attachment.view.AttachmentView;
 
-public record PendingQuestionView(Long id, AvatarView avatar, String question, long ts) {}
+public record PendingQuestionView(Long id, AttachmentView avatar, String question, long ts) {}

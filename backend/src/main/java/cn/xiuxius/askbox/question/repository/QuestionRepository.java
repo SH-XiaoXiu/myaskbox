@@ -68,6 +68,18 @@ public class QuestionRepository {
         return mapper.selectCount(null);
     }
 
+    public long countByBoxUserIdAndStatus(Long boxUserId, QuestionStatus status) {
+        return mapper.selectCount(new LambdaQueryWrapper<QuestionEntity>()
+                .eq(QuestionEntity::getBoxUserId, boxUserId)
+                .eq(QuestionEntity::getStatus, status));
+    }
+
+    public long countByBoxUserIdCreatedAtAfter(Long boxUserId, java.time.OffsetDateTime start) {
+        return mapper.selectCount(new LambdaQueryWrapper<QuestionEntity>()
+                .eq(QuestionEntity::getBoxUserId, boxUserId)
+                .ge(QuestionEntity::getCreatedAt, start));
+    }
+
     public IPage<QuestionEntity> findByBoxUserIdAndStatus(
             Long boxUserId, QuestionStatus status, IPage<QuestionEntity> page) {
         return mapper.selectPage(

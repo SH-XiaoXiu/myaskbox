@@ -25,6 +25,7 @@ public class CacheConfig implements CachingConfigurer {
     public static final String CACHE_KEY_PREFIX = "askbox:cache:v3:";
 
     public static final String CACHE_PUBLISHED = "published";
+    public static final String CACHE_ANONYMOUS_AVATARS = "anonymous-avatars";
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
@@ -32,6 +33,7 @@ public class CacheConfig implements CachingConfigurer {
 
         Map<String, RedisCacheConfiguration> perCache = new HashMap<>();
         perCache.put(CACHE_PUBLISHED, defaultCacheConfig(Duration.ofMinutes(2)));
+        perCache.put(CACHE_ANONYMOUS_AVATARS, defaultCacheConfig(Duration.ofMinutes(10)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
