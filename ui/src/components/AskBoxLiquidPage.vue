@@ -403,8 +403,8 @@ function animateComposer() {
       {
         opacity: [0.92, 1, 1],
         transform: [
-          "translateY(26px) scale(0.96)",
-          "translateY(-4px) scale(1.012)",
+          "translateY(-24px) scale(0.96)",
+          "translateY(4px) scale(1.012)",
           "translateY(0) scale(1)",
         ],
       },
@@ -414,7 +414,7 @@ function animateComposer() {
     if (composerToolsRef.value) {
       composerToolsAnimation = animate(
         composerToolsRef.value,
-        { opacity: [0, 1], transform: ["translateY(8px)", "translateY(0)"] },
+        { opacity: [0, 1], transform: ["translateY(-8px)", "translateY(0)"] },
         { duration: 0.24, delay: 0.08, ease: [0.16, 1, 0.3, 1] },
       );
     }
@@ -425,7 +425,7 @@ function animateComposer() {
     panel,
     {
       opacity: [0.98, 1],
-      transform: ["translateY(8px) scale(0.985)", "translateY(0) scale(1)"],
+      transform: ["translateY(-6px) scale(0.985)", "translateY(0) scale(1)"],
     },
     { duration: 0.22, ease: [0.2, 0.8, 0.2, 1] },
   );
@@ -981,6 +981,12 @@ onBeforeUnmount(() => {
   --stage-left: calc((100vw - var(--stage-width)) / 2);
   --qa-width: var(--stage-width);
   --composer-width: var(--stage-width);
+  --brand-top: 32px;
+  --composer-top: 94px;
+  --composer-expanded-height: 264px;
+  --list-top: 176px;
+  --list-bottom: 28px;
+  --preview-top: calc(var(--composer-top) + var(--composer-expanded-height) + 16px);
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -1009,7 +1015,7 @@ onBeforeUnmount(() => {
 
 .brand-strip {
   position: absolute;
-  top: 32px;
+  top: var(--brand-top);
   left: var(--stage-left);
   z-index: 4;
   display: inline-flex;
@@ -1077,12 +1083,12 @@ onBeforeUnmount(() => {
 .qa-list {
   position: absolute;
   left: var(--stage-left);
-  top: 112px;
-  bottom: 112px;
+  top: var(--list-top);
+  bottom: var(--list-bottom);
   z-index: 5;
   width: var(--qa-width);
-  max-height: calc(100vh - 224px);
-  max-height: calc(100dvh - 224px);
+  max-height: calc(100vh - var(--list-top) - var(--list-bottom));
+  max-height: calc(100dvh - var(--list-top) - var(--list-bottom));
   overflow-x: hidden;
   overflow-y: auto;
   padding: 10px 6px 96px 0;
@@ -1110,7 +1116,7 @@ onBeforeUnmount(() => {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-10px) scale(0.985);
+  transform: translateY(10px) scale(0.985);
   transition: none;
 }
 
@@ -1352,12 +1358,12 @@ onBeforeUnmount(() => {
 }
 
 .draft-preview-card {
-  top: 116px;
+  top: var(--preview-top);
   left: 50%;
   z-index: 12;
   width: min(560px, var(--stage-width));
-  max-height: min(280px, calc(100vh - 430px));
-  max-height: min(280px, calc(100dvh - 430px));
+  max-height: min(280px, calc(100vh - var(--preview-top) - 28px));
+  max-height: min(280px, calc(100dvh - var(--preview-top) - 28px));
   padding: 20px 22px 22px;
   border-radius: 36px;
   color: rgba(255, 255, 255, 0.94);
@@ -1421,7 +1427,7 @@ onBeforeUnmount(() => {
 
 .composer-card {
   left: var(--stage-left);
-  bottom: 18px;
+  top: var(--composer-top);
   z-index: 18;
   display: block;
   width: var(--composer-width);
@@ -1436,7 +1442,7 @@ onBeforeUnmount(() => {
 }
 
 .composer-card.expanded {
-  min-height: 264px;
+  min-height: var(--composer-expanded-height);
   padding: 10px;
   transform: translateY(0) scale(1);
 }
@@ -1484,7 +1490,7 @@ onBeforeUnmount(() => {
   border-radius: 38px;
   outline: none;
   padding: 16px 18px;
-  background: rgba(255, 255, 255, 0.42);
+  background: transparent;
   color: rgba(255, 255, 255, 0.96);
   font: inherit;
   font-size: 15px;
@@ -1631,7 +1637,7 @@ onBeforeUnmount(() => {
 
 .send-button {
   left: calc(var(--stage-left) + var(--composer-width) - 58px);
-  bottom: 34px;
+  top: calc(var(--composer-top) + var(--composer-expanded-height) - 58px);
   z-index: 22;
   display: grid;
   place-items: center;
@@ -1714,21 +1720,22 @@ onBeforeUnmount(() => {
     --stage-left: 22px;
     --qa-width: var(--stage-width);
     --composer-width: var(--stage-width);
+    --brand-top: 24px;
+    --composer-top: 82px;
+    --composer-expanded-height: 254px;
+    --list-top: 154px;
+    --list-bottom: 24px;
+    --preview-top: calc(var(--composer-top) + var(--composer-expanded-height) + 14px);
   }
 
   .brand-strip {
-    top: 24px;
     left: 22px;
   }
 
   .qa-list {
     left: 22px;
     width: calc(100vw - 44px);
-    top: 96px;
-    bottom: 96px;
-    max-height: calc(100vh - 192px);
-    max-height: calc(100dvh - 192px);
-    padding: 8px 0 104px;
+    padding: 8px 0 28px;
   }
 
   .qa-card {
@@ -1764,10 +1771,7 @@ onBeforeUnmount(() => {
   }
 
   .draft-preview-card {
-    top: 106px;
     width: var(--stage-width);
-    max-height: calc(100vh - 390px);
-    max-height: calc(100dvh - 390px);
     padding: 18px 20px 20px;
   }
 
@@ -1779,7 +1783,6 @@ onBeforeUnmount(() => {
 
   .composer-card {
     left: var(--stage-left);
-    bottom: 14px;
     width: var(--composer-width);
   }
 
@@ -1802,7 +1805,6 @@ onBeforeUnmount(() => {
 
   .send-button {
     left: calc(var(--stage-left) + var(--composer-width) - 56px);
-    bottom: 28px;
   }
 }
 </style>
