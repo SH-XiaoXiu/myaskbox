@@ -84,7 +84,7 @@ async function submitEdit() {
 <template>
   <div class="page">
     <div class="page-sticky">
-      <van-search v-model="keyword" placeholder="搜索 slug、显示名、用户名" shape="round" @search="doSearch" />
+      <van-search v-model="keyword" placeholder="搜索 slug、显示名、邮箱" shape="round" @search="doSearch" />
     </div>
 
     <div class="page-scroll" @scroll="handleScroll">

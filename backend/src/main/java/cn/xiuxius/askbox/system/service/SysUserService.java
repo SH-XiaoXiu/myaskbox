@@ -12,11 +12,14 @@ public interface SysUserService {
     /** 根据 ID 查询用户。 */
     SysUserEntity getById(Long id);
 
-    /** 根据用户名查询用户。 */
+    /** 根据兼容 username 字段查询用户；邮箱身份模型下 username 等同 email。 */
     SysUserEntity getByUsername(String username);
 
-    /** 用户认证：验证用户名密码，返回用户。 */
-    SysUserEntity authenticate(String username, String rawPassword);
+    /** 根据邮箱查询用户。 */
+    SysUserEntity getByEmail(String email);
+
+    /** 用户认证：验证邮箱密码，返回用户。 */
+    SysUserEntity authenticate(String email, String rawPassword);
 
     /** 管理端用户列表视图（含角色）。 */
     PageResult<UserView> listUserViews(long page, long pageSize, String keyword);
@@ -25,7 +28,7 @@ public interface SysUserService {
     UserView getUserViewById(Long id);
 
     /** 创建用户，返回 BCrypt 加密后的密码哈希。 */
-    SysUserEntity createUser(String username, String rawPassword, String displayName, String email);
+    SysUserEntity createUser(String email, String rawPassword, String displayName);
 
     /** 更新用户基本信息。 */
     void updateUser(Long id, String displayName, String email);

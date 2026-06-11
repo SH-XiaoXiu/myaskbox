@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import cn.xiuxius.askbox.auth.request.ChangePasswordRequest;
+import cn.xiuxius.askbox.auth.request.LoginCodeRequest;
+import cn.xiuxius.askbox.auth.request.LoginCodeVerifyRequest;
 import cn.xiuxius.askbox.auth.request.LoginRequest;
 import cn.xiuxius.askbox.auth.request.RegisterCodeRequest;
 import cn.xiuxius.askbox.auth.request.RegisterRequest;
@@ -35,15 +37,40 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    @Operation(summary = "用户登录", description = "使用用户名和密码登录，系统自动识别角色。登录成功返回 Sa-Token。")
+    @Operation(summary = "用户登录", description = "使用邮箱和密码登录，系统自动识别角色。登录成功返回 Sa-Token。")
     @RateLimit(
             types = {RateLimitType.IP, RateLimitType.CUSTOM},
-            key = "#request.username",
+            key = "#request.loginEmail",
             capacity = 10,
             refillTokens = 10,
             timeWindowSeconds = 60)
     public R<LoginView> login(@Valid @RequestBody LoginRequest request) {
-        return R.ok(authService.login(request.getUsername(), request.getPassword()));
+        return R.ok(authService.login(request.getLoginEmail(), request.getPassword()));
+    }
+
+    @PostMapping("/login/code")
+    @Operation(summary = "发送登录邮箱验证码", description = "向已有账号邮箱发送登录验证码。")
+    @RateLimit(
+            types = {RateLimitType.IP, RateLimitType.USER_AGENT, RateLimitType.CUSTOM},
+            key = "#request.email",
+            capacity = 5,
+            refillTokens = 5,
+            timeWindowSeconds = 60)
+    public R<Void> sendLoginCode(@Valid @RequestBody LoginCodeRequest request) {
+        authService.sendLoginCode(request.getEmail());
+        return R.ok();
+    }
+
+    @PostMapping("/login/code/verify")
+    @Operation(summary = "邮箱验证码登录", description = "校验邮箱验证码，成功后返回 Sa-Token。")
+    @RateLimit(
+            types = {RateLimitType.IP, RateLimitType.USER_AGENT, RateLimitType.CUSTOM},
+            key = "#request.email",
+            capacity = 10,
+            refillTokens = 10,
+            timeWindowSeconds = 60)
+    public R<LoginView> loginByCode(@Valid @RequestBody LoginCodeVerifyRequest request) {
+        return R.ok(authService.loginByCode(request.getEmail(), request.getCode()));
     }
 
     @GetMapping("/register/config")
@@ -75,7 +102,6 @@ public class AuthController {
             timeWindowSeconds = 60)
     public R<LoginView> register(@Valid @RequestBody RegisterRequest request) {
         return R.ok(authService.register(
-                request.getUsername(),
                 request.getPassword(),
                 request.getConfirmPassword(),
                 request.getEmail(),
@@ -84,7 +110,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @Operation(summary = "获取当前用户信息", description = "返回当前登录用户的 id、用户名、角色列表和权限列表。")
+    @Operation(summary = "获取当前用户信息", description = "返回当前登录用户的 id、邮箱、角色列表和权限列表。")
     public R<MeView> me() {
         return R.ok(authService.current());
     }

@@ -9,7 +9,7 @@ public enum ErrorCodes implements BizErrorCode {
 
     // 11xxx 认证
     NOT_LOGIN(11001, "未登录"),
-    BAD_CREDENTIALS(11002, "用户名或密码错误"),
+    BAD_CREDENTIALS(11002, "邮箱或密码错误"),
     FORBIDDEN(11003, "权限不足"),
 
     // 20xxx 业务

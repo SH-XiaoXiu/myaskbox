@@ -46,8 +46,7 @@ public class AdminUserController {
     @PostMapping
     @Operation(summary = "创建用户", description = "创建系统用户，返回用户信息。")
     public R<UserView> createUser(@Valid @RequestBody AdminUserCreateRequest request) {
-        var user = sysUserService.createUser(
-                request.getUsername(), request.getPassword(), request.getDisplayName(), request.getEmail());
+        var user = sysUserService.createUser(request.getEmail(), request.getPassword(), request.getDisplayName());
         return R.ok(sysUserService.getUserViewById(user.getId()));
     }
 

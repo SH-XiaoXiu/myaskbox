@@ -21,7 +21,10 @@ public class SysUserRepository {
     }
 
     public SysUserEntity findByUsername(String username) {
-        return mapper.selectOne(new LambdaQueryWrapper<SysUserEntity>().eq(SysUserEntity::getUsername, username));
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return mapper.selectOne(new QueryWrapper<SysUserEntity>().apply("lower(username) = lower({0})", username));
     }
 
     public SysUserEntity findByEmail(String email) {
@@ -34,7 +37,11 @@ public class SysUserRepository {
     public IPage<SysUserEntity> page(IPage<SysUserEntity> page, String keyword) {
         LambdaQueryWrapper<SysUserEntity> w = new LambdaQueryWrapper<>();
         if (keyword != null && !keyword.isBlank()) {
-            w.like(SysUserEntity::getUsername, keyword).or().like(SysUserEntity::getDisplayName, keyword);
+            w.and(q -> q.like(SysUserEntity::getUsername, keyword)
+                    .or()
+                    .like(SysUserEntity::getDisplayName, keyword)
+                    .or()
+                    .like(SysUserEntity::getEmail, keyword));
         }
         w.orderByDesc(SysUserEntity::getCreatedAt);
         return mapper.selectPage(page, w);

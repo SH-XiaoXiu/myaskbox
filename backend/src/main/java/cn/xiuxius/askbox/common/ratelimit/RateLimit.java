@@ -18,7 +18,7 @@ public @interface RateLimit {
     /** 限流类型数组，默认 IP。多个类型为 AND 关系：所有类型都未超限才放行。 */
     RateLimitType[] types() default {RateLimitType.IP};
 
-    /** SpEL 表达式，用于 CUSTOM 类型的 key（如 {@code #request.username}）。 */
+    /** SpEL 表达式，用于 CUSTOM 类型的 key（如 {@code #request.email}）。 */
     String key() default "";
 
     /** 令牌桶容量，<=0 时使用配置中的默认值。 */

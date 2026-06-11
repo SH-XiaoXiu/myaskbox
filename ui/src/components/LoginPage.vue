@@ -4,7 +4,7 @@ import { LiquidGlass } from "@ybouane/liquidglass";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { pageBackground } from "../assets/background";
-import { getRegisterConfig } from "../api/auth";
+import { getRegisterConfig, sendLoginCode } from "../api/auth";
 import { useAuthStore } from "../stores/auth";
 
 const router = useRouter();
@@ -14,12 +14,16 @@ const rootRef = ref(null);
 const bgRef = ref(null);
 const cardRef = ref(null);
 const buttonRef = ref(null);
-const usernameRef = ref(null);
+const emailRef = ref(null);
 
-const username = ref("");
+const loginMode = ref("password");
+const email = ref("");
 const password = ref("");
+const code = ref("");
 const showPassword = ref(false);
 const loading = ref(false);
+const sendingCode = ref(false);
+const countdown = ref(0);
 const error = ref("");
 const success = ref(false);
 const registerEnabled = ref(false);
@@ -30,6 +34,7 @@ let glassRefreshFrame = 0;
 let stableRefreshTimers = [];
 let cardAnimation = null;
 let errorAnimation = null;
+let countdownTimer = 0;
 
 // ==================== LiquidGlass configs ====================
 const cardConfig = {
@@ -195,7 +200,14 @@ function animateErrorShake() {
 
 // ==================== Form handlers ====================
 function canSubmit() {
-  return username.value.trim().length > 0 && password.value.trim().length > 0 && !loading.value;
+  if (loading.value) return false;
+  if (!email.value.trim()) return false;
+  if (loginMode.value === "code") return code.value.trim().length > 0;
+  return password.value.trim().length > 0;
+}
+
+function canSendCode() {
+  return email.value.trim().length > 0 && !loading.value && !sendingCode.value && countdown.value <= 0;
 }
 
 async function handleSubmit() {
@@ -206,18 +218,49 @@ async function handleSubmit() {
   success.value = false;
 
   try {
-    await authStore.login(username.value.trim(), password.value)
+    if (loginMode.value === "code") {
+      await authStore.loginWithCode(email.value.trim(), code.value.trim())
+    } else {
+      await authStore.login(email.value.trim(), password.value)
+    }
     success.value = true
     // 短暂展示 success 状态后跳转
     await new Promise((resolve) => setTimeout(resolve, 600))
     const redirect = router.currentRoute.value.query.redirect
     router.push(resolveLoginTarget(redirect))
   } catch (err) {
-    error.value = err.message || '用户名或密码错误'
+    error.value = err.message || (loginMode.value === "code" ? "邮箱验证码错误或已过期" : "邮箱或密码错误")
     animateErrorShake()
   } finally {
     loading.value = false
   }
+}
+
+async function handleSendCode() {
+  if (!canSendCode()) return;
+  sendingCode.value = true;
+  error.value = "";
+  try {
+    await sendLoginCode(email.value.trim());
+    startCountdown();
+  } catch (err) {
+    error.value = err.message || "验证码发送失败";
+    animateErrorShake();
+  } finally {
+    sendingCode.value = false;
+  }
+}
+
+function startCountdown() {
+  countdown.value = 60;
+  if (countdownTimer) window.clearInterval(countdownTimer);
+  countdownTimer = window.setInterval(() => {
+    countdown.value -= 1;
+    if (countdown.value <= 0) {
+      window.clearInterval(countdownTimer);
+      countdownTimer = 0;
+    }
+  }, 1000);
 }
 
 function resolveLoginTarget(redirect) {
@@ -240,6 +283,12 @@ function togglePassword() {
   showPassword.value = !showPassword.value;
 }
 
+function switchLoginMode(mode) {
+  loginMode.value = mode;
+  error.value = "";
+  nextTick(() => scheduleStableGlassRefresh());
+}
+
 function goHome() {
   router.push("/");
 }
@@ -254,13 +303,14 @@ onMounted(() => {
   initLiquidGlass();
   nextTick(() => {
     animateCardIn();
-    usernameRef.value?.focus();
+    emailRef.value?.focus();
   });
 });
 
 onBeforeUnmount(() => {
   initToken += 1;
   stableRefreshTimers.forEach((t) => window.clearTimeout(t));
+  if (countdownTimer) window.clearInterval(countdownTimer);
   stopAnimation(cardAnimation);
   stopAnimation(errorAnimation);
   liquidGlass?.destroy();
@@ -305,25 +355,46 @@ onBeforeUnmount(() => {
       </div>
 
       <form class="login-form" @submit.prevent="handleSubmit">
-        <div class="field">
-          <label class="field-label" for="login-username">
-            <i class="ri-user-line" aria-hidden="true"></i>
-          </label>
-          <input
-            id="login-username"
-            ref="usernameRef"
-            v-model="username"
-            class="field-input"
-            type="text"
-            name="username"
-            autocomplete="username"
-            placeholder="用户名"
-            :disabled="loading"
-            aria-label="用户名"
-          />
+        <div class="login-tabs" role="tablist" aria-label="登录方式">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="loginMode === 'password'"
+            :class="{ active: loginMode === 'password' }"
+            @click="switchLoginMode('password')"
+          >
+            密码登录
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="loginMode === 'code'"
+            :class="{ active: loginMode === 'code' }"
+            @click="switchLoginMode('code')"
+          >
+            验证码登录
+          </button>
         </div>
 
         <div class="field">
+          <label class="field-label" for="login-email">
+            <i class="ri-mail-line" aria-hidden="true"></i>
+          </label>
+          <input
+            id="login-email"
+            ref="emailRef"
+            v-model="email"
+            class="field-input"
+            type="email"
+            name="email"
+            autocomplete="email"
+            placeholder="邮箱"
+            :disabled="loading"
+            aria-label="邮箱"
+          />
+        </div>
+
+        <div v-if="loginMode === 'password'" class="field">
           <label class="field-label" for="login-password">
             <i class="ri-lock-line" aria-hidden="true"></i>
           </label>
@@ -349,6 +420,29 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
+        <div v-else class="code-field">
+          <div class="field">
+            <label class="field-label" for="login-code">
+              <i class="ri-shield-keyhole-line" aria-hidden="true"></i>
+            </label>
+            <input
+              id="login-code"
+              v-model="code"
+              class="field-input"
+              type="text"
+              inputmode="numeric"
+              maxlength="12"
+              autocomplete="one-time-code"
+              placeholder="邮箱验证码"
+              :disabled="loading"
+              aria-label="邮箱验证码"
+            />
+          </div>
+          <button class="code-button" type="button" :disabled="!canSendCode()" @click="handleSendCode">
+            {{ sendingCode ? '发送中' : countdown > 0 ? `${countdown}s` : '验证码' }}
+          </button>
+        </div>
+
         <div v-if="error" class="login-error" role="alert" aria-live="assertive">
           <i class="ri-error-warning-line" aria-hidden="true"></i>
           <span>{{ error }}</span>
@@ -363,7 +457,7 @@ onBeforeUnmount(() => {
         >
           <i v-if="loading" class="ri-loader-4-line is-spinning" aria-hidden="true"></i>
           <i v-else class="ri-login-box-line" aria-hidden="true"></i>
-          <span>{{ loading ? "登录中..." : "登 录" }}</span>
+          <span>{{ loading ? "登录中..." : "登录" }}</span>
         </button>
       </form>
 
@@ -559,6 +653,41 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
+.login-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-height: 44px;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.login-tabs button {
+  min-width: 0;
+  min-height: 36px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.58);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 680;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.login-tabs button.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.login-tabs button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.78);
+  outline-offset: 2px;
+}
+
 .field {
   position: relative;
   z-index: 1;
@@ -654,6 +783,41 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
+.code-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.code-button {
+  min-width: 0;
+  min-height: 48px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #15151c;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 740;
+  cursor: pointer;
+  transition: opacity 160ms ease, background 160ms ease;
+}
+
+.code-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.code-button:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.code-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.78);
+  outline-offset: 3px;
+}
+
 /* ============ Error ============ */
 .login-error {
   display: flex;
@@ -736,7 +900,7 @@ onBeforeUnmount(() => {
   z-index: 1;
   font-size: 15px;
   font-weight: 680;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
 }
 
 .login-button:focus-visible {
@@ -803,6 +967,10 @@ onBeforeUnmount(() => {
     top: 20px;
     left: 18px;
   }
+
+  .code-field {
+    grid-template-columns: minmax(0, 1fr) 86px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -817,6 +985,8 @@ onBeforeUnmount(() => {
   .field,
   .field-label,
   .field-toggle,
+  .login-tabs button,
+  .code-button,
   .login-button,
   .login-home-link {
     transition: none;

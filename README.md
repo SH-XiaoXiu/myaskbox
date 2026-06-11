@@ -82,7 +82,7 @@ Vite 已配置 `/api` 代理到 `http://localhost:8080`。
 初始化管理员账号：
 
 ```text
-username: admin
+email: admin@askbox.local
 password: admin123
 ```
 

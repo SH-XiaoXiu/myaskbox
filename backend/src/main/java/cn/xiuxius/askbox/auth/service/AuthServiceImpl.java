@@ -33,12 +33,35 @@ public class AuthServiceImpl implements AuthService {
     private final SysUserRepository sysUserRepository;
     private final BoxUserService boxUserService;
     private final SysSettingService sysSettingService;
-    private final RegisterCodeService registerCodeService;
+    private final EmailCodeService emailCodeService;
 
     @Override
     @Transactional
-    public LoginView login(String username, String password) {
-        SysUserEntity user = sysUserService.authenticate(username, password);
+    public LoginView login(String email, String password) {
+        SysUserEntity user = sysUserService.authenticate(email, password);
+        return loginUser(user);
+    }
+
+    @Override
+    public void sendLoginCode(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        SysUserEntity user = sysUserRepository.findByEmail(normalizedEmail);
+        if (user == null || "DISABLED".equals(user.getStatus())) {
+            return;
+        }
+        emailCodeService.sendLoginCode(normalizedEmail);
+    }
+
+    @Override
+    @Transactional
+    public LoginView loginByCode(String email, String code) {
+        String normalizedEmail = normalizeEmail(email);
+        SysUserEntity user = sysUserRepository.findByEmail(normalizedEmail);
+        if (user == null) {
+            throw new BizException(ErrorCodes.EMAIL_CODE_INVALID);
+        }
+        emailCodeService.verifyLoginCode(normalizedEmail, code);
+        if ("DISABLED".equals(user.getStatus())) throw new BizException(ErrorCodes.FORBIDDEN, "账户已被禁用");
         return loginUser(user);
     }
 
@@ -50,24 +73,24 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void sendRegisterCode(String email) {
         ensureRegisterEnabled();
-        registerCodeService.send(normalizeEmail(email));
+        emailCodeService.sendRegisterCode(normalizeEmail(email));
     }
 
     @Override
     @Transactional
-    public LoginView register(
-            String username, String password, String confirmPassword, String email, String code, String displayName) {
+    public LoginView register(String password, String confirmPassword, String email, String code, String displayName) {
         ensureRegisterEnabled();
         if (!password.equals(confirmPassword)) {
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "两次输入的密码不一致");
         }
         String normalizedEmail = normalizeEmail(email);
-        registerCodeService.verify(normalizedEmail, code);
+        emailCodeService.verifyRegisterCode(normalizedEmail, code);
         SysUserEntity user = sysUserService.createUser(
-                username.trim(),
+                normalizedEmail,
                 password,
-                displayName == null || displayName.isBlank() ? username.trim() : displayName.trim(),
-                normalizedEmail);
+                displayName == null || displayName.isBlank()
+                        ? defaultDisplayName(normalizedEmail)
+                        : displayName.trim());
         ensureOwnerBox(user);
         return loginUser(user);
     }
@@ -95,7 +118,7 @@ public class AuthServiceImpl implements AuthService {
         if (current == null) {
             return null;
         }
-        return new MeView(current.id(), current.username(), current.roles(), current.permissions());
+        return new MeView(current.id(), current.username(), current.email(), current.roles(), current.permissions());
     }
 
     @Override
@@ -125,7 +148,7 @@ public class AuthServiceImpl implements AuthService {
         if (boxUserService.getByUserId(user.getId()) != null) {
             return;
         }
-        String slug = user.getUsername().toLowerCase().replaceAll("[^a-z0-9-]", "");
+        String slug = defaultSlug(user);
         if (slug.isBlank()) {
             slug = "user-" + user.getId();
         }
@@ -140,5 +163,16 @@ public class AuthServiceImpl implements AuthService {
 
     private String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String defaultDisplayName(String email) {
+        int at = email.indexOf('@');
+        return at > 0 ? email.substring(0, at) : email;
+    }
+
+    private String defaultSlug(SysUserEntity user) {
+        String email = user.getEmail() == null ? user.getUsername() : user.getEmail();
+        String localPart = defaultDisplayName(normalizeEmail(email));
+        return localPart.replaceAll("[^a-z0-9-]+", "-").replaceAll("(^-+|-+$)", "");
     }
 }

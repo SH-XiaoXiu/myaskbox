@@ -77,8 +77,8 @@ function statusText(status) {
         <van-cell
           v-for="user in recentUsers"
           :key="user.id"
-          :title="user.displayName || user.username"
-          :label="`@${user.username} · ${formatTime(new Date(user.createdAt).getTime())}`"
+          :title="user.displayName || user.email || user.username"
+          :label="`${user.email || user.username} · ${formatTime(new Date(user.createdAt).getTime())}`"
         >
           <template #value>
             <van-tag :type="statusTag(user.status)" size="medium">

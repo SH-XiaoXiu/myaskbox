@@ -84,7 +84,7 @@ public class RateLimitAspect {
         return request.getMethod() + ":" + request.getRequestURI();
     }
 
-    /** 解析 SpEL 表达式（如 {@code #request.username}）。 */
+    /** 解析 SpEL 表达式（如 {@code #request.email}）。 */
     private String resolveSpelKey(String spel, ProceedingJoinPoint joinPoint, Method method) {
         if (spel == null || spel.isBlank()) {
             return null;

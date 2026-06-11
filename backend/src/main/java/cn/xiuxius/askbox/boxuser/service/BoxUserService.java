@@ -24,7 +24,7 @@ public interface BoxUserService {
 
     BoxStatsView getStats(Long userId, String zoneId);
 
-    /** 管理端 Box 列表视图（含 username + questionCount）。 */
+    /** 管理端 Box 列表视图（含 owner 邮箱 + questionCount）。 */
     PageResult<BoxView> listBoxViews(long page, long pageSize, String keyword);
 
     BoxProfileView updateBox(

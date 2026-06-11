@@ -14,7 +14,7 @@ const auth = useAuthStore()
 const rootRef = ref(null)
 const bgRef = ref(null)
 const cardRef = ref(null)
-const usernameRef = ref(null)
+const emailRef = ref(null)
 
 const enabled = ref(false)
 const loadingConfig = ref(true)
@@ -22,7 +22,6 @@ const sendingCode = ref(false)
 const submitting = ref(false)
 const countdown = ref(0)
 const form = ref({
-  username: '',
   displayName: '',
   email: '',
   code: '',
@@ -60,7 +59,6 @@ const cardConfig = {
 const canSendCode = computed(() => enabled.value && form.value.email.trim() && !sendingCode.value && countdown.value <= 0)
 const canSubmit = computed(() =>
   enabled.value
-  && form.value.username.trim()
   && form.value.email.trim()
   && form.value.code.trim()
   && form.value.password
@@ -162,7 +160,7 @@ onMounted(async () => {
   initLiquidGlass()
   nextTick(() => {
     animateCardIn()
-    usernameRef.value?.focus()
+    emailRef.value?.focus()
   })
   try {
     const config = await getRegisterConfig()
@@ -218,7 +216,6 @@ async function handleSubmit() {
   submitting.value = true
   try {
     await auth.register({
-      username: form.value.username.trim(),
       displayName: form.value.displayName.trim(),
       email: form.value.email.trim(),
       code: form.value.code.trim(),
@@ -276,21 +273,17 @@ async function handleSubmit() {
 
       <form v-else class="register-form" @submit.prevent="handleSubmit">
         <label>
-          <span>用户名</span>
-          <input ref="usernameRef" v-model="form.username" autocomplete="username" maxlength="50" />
-        </label>
-        <label>
-          <span>显示名</span>
-          <input v-model="form.displayName" autocomplete="name" maxlength="100" />
-        </label>
-        <label>
           <span>邮箱</span>
           <div class="code-row">
-            <input v-model="form.email" type="email" autocomplete="email" maxlength="200" />
+            <input ref="emailRef" v-model="form.email" type="email" autocomplete="email" maxlength="200" />
             <button type="button" :disabled="!canSendCode" @click="handleSendCode">
               {{ countdown > 0 ? `${countdown}s` : '验证码' }}
             </button>
           </div>
+        </label>
+        <label>
+          <span>显示名</span>
+          <input v-model="form.displayName" autocomplete="name" maxlength="100" />
         </label>
         <label>
           <span>邮箱验证码</span>

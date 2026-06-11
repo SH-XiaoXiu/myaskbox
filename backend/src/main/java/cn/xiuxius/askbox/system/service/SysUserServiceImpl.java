@@ -2,6 +2,7 @@ package cn.xiuxius.askbox.system.service;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import org.springframework.security.crypto.bcrypt.BCrypt;
@@ -50,8 +51,13 @@ public class SysUserServiceImpl implements SysUserService {
     }
 
     @Override
-    public SysUserEntity authenticate(String username, String rawPassword) {
-        SysUserEntity user = sysUserRepository.findByUsername(username);
+    public SysUserEntity getByEmail(String email) {
+        return sysUserRepository.findByEmail(normalizeEmail(email));
+    }
+
+    @Override
+    public SysUserEntity authenticate(String email, String rawPassword) {
+        SysUserEntity user = sysUserRepository.findByEmail(normalizeEmail(email));
         if (user == null) throw new BizException(ErrorCodes.BAD_CREDENTIALS);
         if (!BCrypt.checkpw(rawPassword, user.getPasswordHash())) throw new BizException(ErrorCodes.BAD_CREDENTIALS);
         if ("DISABLED".equals(user.getStatus())) throw new BizException(ErrorCodes.FORBIDDEN, "账户已被禁用");
@@ -76,23 +82,22 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Override
     @Transactional
-    public SysUserEntity createUser(String username, String rawPassword, String displayName, String email) {
-        String normalizedEmail = email == null ? null : email.trim().toLowerCase();
-        if (sysUserRepository.findByUsername(username) != null)
-            throw new BizException(ErrorCodes.VALIDATION_ERROR, "用户名已存在");
-        if (normalizedEmail != null
-                && !normalizedEmail.isBlank()
-                && sysUserRepository.findByEmail(normalizedEmail) != null)
+    public SysUserEntity createUser(String email, String rawPassword, String displayName) {
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail.isBlank()) {
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱不能为空");
+        }
+        if (sysUserRepository.findByEmail(normalizedEmail) != null)
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱已存在");
         SysUserEntity user = new SysUserEntity()
-                .setUsername(username)
+                .setUsername(normalizedEmail)
                 .setPasswordHash(BCrypt.hashpw(rawPassword, BCrypt.gensalt()))
                 .setDisplayName(displayName)
                 .setEmail(normalizedEmail)
                 .setStatus("ACTIVE");
         sysUserRepository.insert(user);
         assignRoles(user.getId(), List.of("BOX_OWNER"));
-        log.info("User created: id={} username={}", user.getId(), username);
+        log.info("User created: id={} email={}", user.getId(), normalizedEmail);
         return user;
     }
 
@@ -100,12 +105,15 @@ public class SysUserServiceImpl implements SysUserService {
     @Transactional
     public void updateUser(Long id, String displayName, String email) {
         SysUserEntity user = getById(id);
-        String normalizedEmail = email == null ? null : email.trim().toLowerCase();
+        String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail.isBlank()) {
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱不能为空");
+        }
         SysUserEntity sameEmailUser = sysUserRepository.findByEmail(normalizedEmail);
         if (sameEmailUser != null && !sameEmailUser.getId().equals(id)) {
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱已存在");
         }
-        user.setDisplayName(displayName).setEmail(normalizedEmail);
+        user.setUsername(normalizedEmail).setDisplayName(displayName).setEmail(normalizedEmail);
         sysUserRepository.update(user);
     }
 
@@ -194,7 +202,11 @@ public class SysUserServiceImpl implements SysUserService {
                 ? sysUserRoleMapper.selectAllPermissionCodes()
                 : sysUserRoleMapper.selectPermissionCodesByUserId(userId);
         Set<String> perms = new HashSet<>(permCodes);
-        return new CurrentUser(userId, user.getUsername(), roles, perms);
+        return new CurrentUser(userId, user.getUsername(), user.getEmail(), roles, perms);
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     /**

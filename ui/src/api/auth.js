@@ -1,7 +1,13 @@
 import api from './client'
 
 /** POST /api/auth/login */
-export const login = (username, password) => api.post('/auth/login', { username, password })
+export const login = (email, password) => api.post('/auth/login', { email, password })
+
+/** POST /api/auth/login/code */
+export const sendLoginCode = (email) => api.post('/auth/login/code', { email })
+
+/** POST /api/auth/login/code/verify */
+export const loginWithCode = (email, code) => api.post('/auth/login/code/verify', { email, code })
 
 /** GET /api/auth/register/config */
 export const getRegisterConfig = () => api.get('/auth/register/config')

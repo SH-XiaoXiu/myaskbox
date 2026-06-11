@@ -73,13 +73,13 @@ const showFormSheet = ref(false)
 const formTitle = ref('')
 const isEditing = ref(false)
 const editingUser = ref(null)
-const form = ref({ username: '', password: '', displayName: '', email: '' })
+const form = ref({ password: '', displayName: '', email: '' })
 
 function openCreate() {
   isEditing.value = false
   editingUser.value = null
   formTitle.value = '新增用户'
-  form.value = { username: '', password: '', displayName: '', email: '' }
+  form.value = { password: '', displayName: '', email: '' }
   showFormSheet.value = true
 }
 
@@ -87,7 +87,7 @@ function openEdit(user) {
   isEditing.value = true
   editingUser.value = user
   formTitle.value = '编辑用户'
-  form.value = { username: user.username, password: '', displayName: user.displayName, email: user.email }
+  form.value = { password: '', displayName: user.displayName, email: user.email || user.username }
   showFormSheet.value = true
 }
 
@@ -96,11 +96,11 @@ async function submitForm() {
     if (isEditing.value && editingUser.value) {
       await updateUser(editingUser.value.id, { displayName: form.value.displayName, email: form.value.email })
       editingUser.value.displayName = form.value.displayName
-      editingUser.value.email = form.value.email
+      editingUser.value.email = form.value.email.trim().toLowerCase()
+      editingUser.value.username = editingUser.value.email
       showSuccessToast('已更新')
     } else {
       const newUser = await createUser({
-        username: form.value.username,
         password: form.value.password,
         displayName: form.value.displayName,
         email: form.value.email,
@@ -148,7 +148,7 @@ function toggleRole(code) {
 async function toggleStatus(user) {
   const action = user.status === 'ACTIVE' ? '禁用' : '启用'
   try {
-    await showDialog({ title: '确认操作', message: `确定要${action}用户 ${user.username} 吗？` })
+    await showDialog({ title: '确认操作', message: `确定要${action}用户 ${user.email || user.username} 吗？` })
     if (user.status === 'ACTIVE') {
       await disableUser(user.id)
     } else {
@@ -178,7 +178,7 @@ function openAction(user) {
 <template>
   <div class="page">
     <div class="page-sticky">
-      <van-search v-model="keyword" placeholder="搜索用户名、显示名、邮箱" shape="round" @search="doSearch" />
+      <van-search v-model="keyword" placeholder="搜索邮箱、显示名" shape="round" @search="doSearch" />
     </div>
 
     <div class="page-scroll" @scroll="handleScroll">
@@ -194,7 +194,7 @@ function openAction(user) {
               </div>
             </template>
             <template #label>
-              @{{ user.username }} · {{ user.email }} · {{ formatTime(new Date(user.createdAt).getTime()) }}
+              {{ user.email || user.username }} · {{ formatTime(new Date(user.createdAt).getTime()) }}
             </template>
             <template #value>
               <van-tag :type="user.status === 'ACTIVE' ? 'success' : 'danger'" size="medium">
@@ -222,10 +222,9 @@ function openAction(user) {
 
     <van-action-sheet v-model:show="showFormSheet" :title="formTitle" close-on-click-action>
       <div class="sheet-form">
-        <van-field v-model="form.username" label="用户名" placeholder="请输入用户名" :disabled="isEditing" />
         <van-field v-if="!isEditing" v-model="form.password" label="密码" type="password" placeholder="请输入密码" />
+        <van-field v-model="form.email" label="邮箱" type="email" autocomplete="email" placeholder="请输入邮箱" />
         <van-field v-model="form.displayName" label="显示名" placeholder="请输入显示名" />
-        <van-field v-model="form.email" label="邮箱" placeholder="请输入邮箱" />
         <div class="sheet-form-btn">
           <van-button type="primary" round block @click="submitForm">确定</van-button>
         </div>
@@ -234,7 +233,7 @@ function openAction(user) {
 
     <van-action-sheet v-model:show="showRoleSheet" title="分配角色" close-on-click-action>
       <div class="sheet-form">
-        <p class="role-hint">为 <strong>{{ roleUser?.username }}</strong> 分配角色：</p>
+        <p class="role-hint">为 <strong>{{ roleUser?.email || roleUser?.username }}</strong> 分配角色：</p>
         <van-cell-group inset>
           <van-cell v-for="role in availableRoles" :key="role.code" :title="role.name" :label="role.code" clickable @click="toggleRole(role.code)">
             <template #right-icon>

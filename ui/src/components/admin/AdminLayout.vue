@@ -43,9 +43,12 @@ async function handleLogout() {
       </template>
       <template #right>
         <div class="nav-actions">
-          <span class="nav-user">
+          <span
+            class="nav-user"
+            :title="auth.user?.email || auth.user?.username || ''"
+            :aria-label="`当前账号：${auth.user?.email || auth.user?.username || ''}`"
+          >
             <i class="ri-user-3-line"></i>
-            <span class="nav-username">{{ auth.user?.username || '' }}</span>
           </span>
           <button class="nav-logout" type="button" @click="handleLogout">
             <i class="ri-logout-box-r-line"></i>
@@ -119,16 +122,13 @@ async function handleLogout() {
 }
 
 .nav-user {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
   font-size: 20px;
   color: var(--van-nav-bar-text-color, #323233);
-}
-
-.nav-username {
-  font-size: 14px;
-  font-weight: 520;
 }
 
 .nav-logout {
@@ -139,6 +139,7 @@ async function handleLogout() {
   padding: 0 9px;
   border: 0;
   border-radius: 15px;
+  flex: 0 0 auto;
   background: #f2f3f5;
   color: #323233;
   font: inherit;

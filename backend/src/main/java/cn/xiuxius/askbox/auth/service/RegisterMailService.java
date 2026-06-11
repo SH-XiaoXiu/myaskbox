@@ -28,6 +28,14 @@ public class RegisterMailService {
     private final SysSettingService settingService;
 
     public void sendRegisterCode(String email, String code, int minutes) {
+        sendCode(email, code, minutes, "AskBox 注册验证码", "你正在注册 AskBox 箱主账号。请在页面中输入下面的验证码：");
+    }
+
+    public void sendLoginCode(String email, String code, int minutes) {
+        sendCode(email, code, minutes, "AskBox 登录验证码", "你正在登录 AskBox。请在页面中输入下面的验证码：");
+    }
+
+    private void sendCode(String email, String code, int minutes, String subject, String description) {
         try {
             JavaMailSenderImpl sender = buildSender();
             MimeMessage message = sender.createMimeMessage();
@@ -40,8 +48,8 @@ public class RegisterMailService {
                 helper.setFrom(from, fromName);
             }
             helper.setTo(email);
-            helper.setSubject("AskBox 注册验证码");
-            helper.setText(renderTemplate(code, minutes), true);
+            helper.setSubject(subject);
+            helper.setText(renderTemplate(subject, description, code, minutes), true);
             sender.send(message);
         } catch (BizException ex) {
             throw ex;
@@ -95,9 +103,12 @@ public class RegisterMailService {
         return "验证码邮件发送失败：" + detail;
     }
 
-    private String renderTemplate(String code, int minutes) throws Exception {
+    private String renderTemplate(String title, String description, String code, int minutes) throws Exception {
         ClassPathResource resource = new ClassPathResource("mail/register-code.html");
         String template = StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
-        return template.replace("{{code}}", code).replace("{{minutes}}", String.valueOf(minutes));
+        return template.replace("{{title}}", title)
+                .replace("{{description}}", description)
+                .replace("{{code}}", code)
+                .replace("{{minutes}}", String.valueOf(minutes));
     }
 }
