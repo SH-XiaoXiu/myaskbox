@@ -91,9 +91,18 @@ const composerRef = ref(null);
 const detailRef = ref(null);
 const detailScrimRef = ref(null);
 const composerToolsRef = ref(null);
+const draftPreviewRef = ref(null);
+const draftPreviewContentRef = ref(null);
+const draftPreviewHeadRef = ref(null);
+const draftPreviewTextRef = ref(null);
 
 const composerOpen = ref(false);
 const composerClosing = ref(false);
+const draftPreviewRendered = ref(false);
+const draftPreviewLeaving = ref(false);
+const draftPreviewDisplayText = ref("");
+const draftPreviewDisplayCharCount = ref("0 / 350");
+const draftPreviewHeight = ref("0px");
 const content = ref("");
 const sending = ref(false);
 const selectedQA = ref(null);
@@ -109,8 +118,15 @@ let glassRefreshFrame = 0;
 let toastTimer = 0;
 let composerAnimation = null;
 let composerToolsAnimation = null;
+let draftPreviewAnimation = null;
+let draftPreviewContentAnimation = null;
+let draftPreviewHeadAnimation = null;
+let draftPreviewTextAnimation = null;
+let draftPreviewTransitionToken = 0;
+let draftPreviewExitPromise = null;
 let composerTransitionToken = 0;
 let stableRefreshTimers = [];
+let draftPreviewMeasureFrame = 0;
 let qaMotionState = {
   lastScrollTop: 0,
   lastTime: 0,
@@ -261,10 +277,10 @@ function scheduleGlassRefresh(element = rootRef.value) {
   });
 }
 
-function scheduleStableGlassRefresh() {
+function scheduleStableGlassRefresh(element = rootRef.value, delays = [360]) {
   stableRefreshTimers.forEach((timer) => window.clearTimeout(timer));
-  stableRefreshTimers = [0, 80, 220].map((delay) =>
-    window.setTimeout(() => scheduleGlassRefresh(rootRef.value), delay),
+  stableRefreshTimers = delays.map((delay) =>
+    window.setTimeout(() => scheduleGlassRefresh(element), delay),
   );
 }
 
@@ -290,7 +306,11 @@ function animateComposerOpen() {
         "translateY(0) scale(1)",
       ],
     },
-    { duration: 0.36, ease: [0.16, 1, 0.3, 1] },
+    {
+      duration: 0.36,
+      ease: [0.16, 1, 0.3, 1],
+      onComplete: () => scheduleGlassRefresh(panel),
+    },
   );
 
   if (composerToolsRef.value) {
@@ -302,15 +322,263 @@ function animateComposerOpen() {
   }
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+}
+
+function clearDraftPreviewPanelInlineStyles() {
+  const panel = draftPreviewRef.value;
+  if (panel) {
+    panel.style.opacity = "";
+    panel.style.transform = "";
+  }
+}
+
+function clearDraftPreviewContentInlineStyles() {
+  const contentPanel = draftPreviewContentRef.value;
+  if (contentPanel) {
+    contentPanel.style.opacity = "";
+    contentPanel.style.transform = "";
+  }
+}
+
+function clearDraftPreviewChildInlineStyles(element) {
+  if (element) {
+    element.style.opacity = "";
+    element.style.transform = "";
+  }
+}
+
+function clearDraftPreviewInlineStyles() {
+  clearDraftPreviewPanelInlineStyles();
+  clearDraftPreviewContentInlineStyles();
+  clearDraftPreviewChildInlineStyles(draftPreviewHeadRef.value);
+  clearDraftPreviewChildInlineStyles(draftPreviewTextRef.value);
+}
+
+function stopDraftPreviewAnimations() {
+  stopAnimation(draftPreviewAnimation);
+  stopAnimation(draftPreviewContentAnimation);
+  stopAnimation(draftPreviewHeadAnimation);
+  stopAnimation(draftPreviewTextAnimation);
+  draftPreviewAnimation = null;
+  draftPreviewContentAnimation = null;
+  draftPreviewHeadAnimation = null;
+  draftPreviewTextAnimation = null;
+}
+
+function syncDraftPreviewDisplay(text = draftText.value) {
+  if (!text) return;
+  draftPreviewDisplayText.value = text;
+  draftPreviewDisplayCharCount.value = charCount.value;
+  scheduleDraftPreviewMeasure();
+}
+
+function scheduleDraftPreviewMeasure() {
+  if (draftPreviewMeasureFrame) return;
+  draftPreviewMeasureFrame = requestAnimationFrame(() => {
+    draftPreviewMeasureFrame = 0;
+    const contentPanel = draftPreviewContentRef.value;
+    if (!contentPanel) return;
+    const nextHeight = `${Math.ceil(contentPanel.offsetHeight)}px`;
+    if (nextHeight !== draftPreviewHeight.value) {
+      draftPreviewHeight.value = nextHeight;
+    }
+  });
+}
+
+function pinDraftPreviewVisibleStyles() {
+  for (const element of [draftPreviewRef.value, draftPreviewContentRef.value]) {
+    if (!element) continue;
+    element.style.opacity = "1";
+    element.style.transform = "translate3d(-50%, 0, 0) scale(1)";
+  }
+}
+
+async function showDraftPreview() {
+  const panel = draftPreviewRef.value;
+  const contentPanel = draftPreviewContentRef.value;
+  if (!panel) return;
+
+  const token = ++draftPreviewTransitionToken;
+  draftPreviewExitPromise = null;
+  draftPreviewRendered.value = true;
+  draftPreviewLeaving.value = false;
+  stopDraftPreviewAnimations();
+  clearDraftPreviewInlineStyles();
+  syncDraftPreviewDisplay();
+
+  await nextTick();
+  scheduleDraftPreviewMeasure();
+  if (token !== draftPreviewTransitionToken) return;
+  if (prefersReducedMotion()) {
+    scheduleGlassRefresh(panel);
+    return;
+  }
+
+  draftPreviewAnimation = animate(
+    panel,
+    {
+      opacity: [0, 1, 1, 1],
+      transform: [
+        "translate3d(-50%, -38px, 0) scale(0.9)",
+        "translate3d(-50%, 8px, 0) scale(1.025)",
+        "translate3d(-50%, -2px, 0) scale(0.996)",
+        "translate3d(-50%, 0, 0) scale(1)",
+      ],
+    },
+    {
+      duration: 0.48,
+      ease: [0.16, 1, 0.3, 1],
+      onComplete: clearDraftPreviewPanelInlineStyles,
+    },
+  );
+
+  if (contentPanel) {
+    draftPreviewContentAnimation = animate(
+      contentPanel,
+      {
+        opacity: [0, 1, 1, 1],
+        transform: [
+          "translate3d(-50%, -38px, 0) scale(0.9)",
+          "translate3d(-50%, 8px, 0) scale(1.025)",
+          "translate3d(-50%, -2px, 0) scale(0.996)",
+          "translate3d(-50%, 0, 0) scale(1)",
+        ],
+      },
+      {
+        duration: 0.48,
+        ease: [0.16, 1, 0.3, 1],
+        onComplete: clearDraftPreviewContentInlineStyles,
+      },
+    );
+  }
+
+  if (draftPreviewHeadRef.value) {
+    draftPreviewHeadAnimation = animate(
+      draftPreviewHeadRef.value,
+      {
+        opacity: [0, 1],
+        transform: [
+          "translateY(-14px) scale(0.94)",
+          "translateY(0) scale(1)",
+        ],
+      },
+      {
+        duration: 0.26,
+        delay: 0.05,
+        ease: [0.16, 1, 0.3, 1],
+        onComplete: () =>
+          clearDraftPreviewChildInlineStyles(draftPreviewHeadRef.value),
+      },
+    );
+  }
+
+  if (draftPreviewTextRef.value) {
+    draftPreviewTextAnimation = animate(
+      draftPreviewTextRef.value,
+      {
+        opacity: [0, 1],
+        transform: [
+          "translateY(-18px) scale(0.975)",
+          "translateY(0) scale(1)",
+        ],
+      },
+      {
+        duration: 0.3,
+        delay: 0.09,
+        ease: [0.16, 1, 0.3, 1],
+        onComplete: () =>
+          clearDraftPreviewChildInlineStyles(draftPreviewTextRef.value),
+      },
+    );
+  }
+
+  draftPreviewAnimation.finished
+    ?.then(() => {
+      if (token === draftPreviewTransitionToken) {
+        scheduleGlassRefresh(panel);
+      }
+    })
+    .catch(() => {});
+}
+
+function hideDraftPreview() {
+  if (!draftPreviewRendered.value) return Promise.resolve();
+  if (draftPreviewLeaving.value && draftPreviewExitPromise) {
+    return draftPreviewExitPromise;
+  }
+
+  const token = ++draftPreviewTransitionToken;
+  const panel = draftPreviewRef.value;
+  const contentPanel = draftPreviewContentRef.value;
+
+  stopDraftPreviewAnimations();
+  pinDraftPreviewVisibleStyles();
+  draftPreviewLeaving.value = true;
+
+  draftPreviewExitPromise = nextTick()
+    .then(async () => {
+      if (token !== draftPreviewTransitionToken || prefersReducedMotion()) return;
+
+      const animations = [];
+      if (panel) {
+        draftPreviewAnimation = animate(
+          panel,
+          {
+            opacity: [1, 0.82, 0],
+            transform: [
+              "translate3d(-50%, 0, 0) scale(1)",
+              "translate3d(-50%, -10px, 0) scale(0.982)",
+              "translate3d(-50%, -32px, 0) scale(0.92)",
+            ],
+          },
+          { duration: 0.24, ease: [0.4, 0, 1, 1] },
+        );
+        animations.push(draftPreviewAnimation.finished?.catch?.(() => {}));
+      }
+
+      if (contentPanel) {
+        draftPreviewContentAnimation = animate(
+          contentPanel,
+          {
+            opacity: [1, 0.78, 0],
+            transform: [
+              "translate3d(-50%, 0, 0) scale(1)",
+              "translate3d(-50%, -10px, 0) scale(0.982)",
+              "translate3d(-50%, -32px, 0) scale(0.92)",
+            ],
+          },
+          { duration: 0.24, ease: [0.4, 0, 1, 1] },
+        );
+        animations.push(draftPreviewContentAnimation.finished?.catch?.(() => {}));
+      }
+
+      await Promise.all(animations);
+    })
+    .finally(() => {
+      if (token !== draftPreviewTransitionToken) return;
+      draftPreviewRendered.value = false;
+      draftPreviewLeaving.value = false;
+      draftPreviewDisplayText.value = draftText.value;
+      draftPreviewDisplayCharCount.value = charCount.value;
+      clearDraftPreviewInlineStyles();
+      if (panel) scheduleGlassRefresh(panel);
+      draftPreviewExitPromise = null;
+    });
+
+  return draftPreviewExitPromise;
+}
+
 async function closeComposer() {
   if (!composerOpen.value || composerClosing.value) return;
   const token = ++composerTransitionToken;
   composerClosing.value = true;
   stopAnimation(composerAnimation);
   stopAnimation(composerToolsAnimation);
+  const previewExit = hideDraftPreview();
 
   await nextTick();
-  scheduleStableGlassRefresh();
 
   if (composerRef.value) {
     composerAnimation = animate(
@@ -318,9 +586,15 @@ async function closeComposer() {
       { transform: ["translateY(0) scale(1)", "translateY(-8px) scale(0.985)"] },
       { duration: 0.18, ease: [0.4, 0, 1, 1] },
     );
-    await composerAnimation.finished?.catch?.(() => {});
+    await Promise.all([
+      composerAnimation.finished?.catch?.(() => {}),
+      previewExit,
+    ]);
   } else {
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
+    await Promise.all([
+      new Promise((resolve) => window.setTimeout(resolve, 180)),
+      previewExit,
+    ]);
   }
 
   if (token !== composerTransitionToken) return;
@@ -332,16 +606,21 @@ async function closeComposer() {
     composerAnimation = animate(
       composerRef.value,
       { transform: ["translateY(-8px) scale(0.985)", "translateY(0) scale(1)"] },
-      { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+      {
+        duration: 0.2,
+        ease: [0.16, 1, 0.3, 1],
+        onComplete: () => scheduleGlassRefresh(composerRef.value),
+      },
     );
   }
-  scheduleStableGlassRefresh();
 }
 
 function openComposer() {
   composerTransitionToken += 1;
   stopAnimation(composerAnimation);
   stopAnimation(composerToolsAnimation);
+  stopDraftPreviewAnimations();
+  clearDraftPreviewInlineStyles();
   selectedQA.value = null;
   detailVisible.value = false;
   composerClosing.value = false;
@@ -350,7 +629,6 @@ function openComposer() {
     textareaRef.value?.focus();
     resetTextareaScroll();
     animateComposerOpen();
-    scheduleStableGlassRefresh();
   });
 }
 
@@ -675,9 +953,9 @@ async function initLiquidGlass() {
   }
 }
 
-watch(composerOpen, () => {
+watch(composerOpen, (open) => {
   nextTick(() => {
-    scheduleStableGlassRefresh();
+    if (open && draftText.value) showDraftPreview();
   });
 });
 
@@ -687,9 +965,23 @@ watch(detailVisible, () => {
   });
 });
 
-watch(draftText, (next, previous) => {
-  if (Boolean(next) === Boolean(previous)) return;
-  nextTick(() => scheduleStableGlassRefresh());
+watch(content, (next, previous) => {
+  const nextDraft = next.trim();
+  const previousDraft = previous.trim();
+  const wasVisible = Boolean(previousDraft);
+  const isVisible = Boolean(nextDraft);
+
+  if (isVisible) {
+    draftPreviewDisplayText.value = nextDraft;
+    draftPreviewDisplayCharCount.value = `${next.length} / 350`;
+    nextTick(() => scheduleDraftPreviewMeasure());
+  }
+
+  if (isVisible && !wasVisible && composerOpen.value && !composerClosing.value) {
+    nextTick(() => showDraftPreview());
+  } else if (!isVisible && wasVisible) {
+    hideDraftPreview();
+  }
 });
 
 watch(selectedQA, () => {
@@ -738,11 +1030,13 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", updateViewportMetrics);
   if (avatarScrollFrame.value) cancelAnimationFrame(avatarScrollFrame.value);
   if (qaScrollFrame.value) cancelAnimationFrame(qaScrollFrame.value);
+  if (draftPreviewMeasureFrame) cancelAnimationFrame(draftPreviewMeasureFrame);
   if (qaMotionState.settleFrame) cancelAnimationFrame(qaMotionState.settleFrame);
   window.clearTimeout(avatarRecenterTimer.value);
   window.clearTimeout(toastTimer);
   stopAnimation(composerAnimation);
   stopAnimation(composerToolsAnimation);
+  stopDraftPreviewAnimations();
   stableRefreshTimers.forEach((timer) => window.clearTimeout(timer));
   liquidGlass?.destroy();
   liquidGlass = null;
@@ -868,22 +1162,30 @@ onBeforeUnmount(() => {
     </article>
 
     <article
-      v-show="composerExpanded && draftText"
+      ref="draftPreviewRef"
       class="liquid-glass draft-preview-card"
-      :class="{ visible: composerOpen && draftText && !composerClosing }"
+      :class="{ visible: draftPreviewRendered && !draftPreviewLeaving }"
       :data-config="configJson(detailCardConfig)"
-      :aria-hidden="!(composerOpen && draftText)"
+      :style="{ height: draftPreviewHeight }"
+      aria-hidden="true"
+    ></article>
+
+    <div
+      ref="draftPreviewContentRef"
+      class="draft-preview-content"
+      :class="{ visible: draftPreviewRendered && !draftPreviewLeaving }"
+      :aria-hidden="!(draftPreviewRendered && !draftPreviewLeaving)"
     >
-      <header class="draft-preview-head">
+      <header ref="draftPreviewHeadRef" class="draft-preview-head">
         <span class="qa-author">
           <span class="qa-avatar" :style="avatarImageStyle(selectedAvatar)">
             <img v-if="avatarSrc(selectedAvatar)" :src="avatarSrc(selectedAvatar)" alt="" @load="scheduleGlassRefresh()" />
           </span>
         </span>
-        <span>{{ charCount }}</span>
+        <span>{{ draftPreviewDisplayCharCount }}</span>
       </header>
-      <p class="draft-preview-text">{{ draftText }}</p>
-    </article>
+      <p ref="draftPreviewTextRef" class="draft-preview-text">{{ draftPreviewDisplayText }}</p>
+    </div>
 
     <section
       ref="composerRef"
@@ -903,7 +1205,7 @@ onBeforeUnmount(() => {
         <i class="ri-pencil-line" aria-hidden="true"></i>
       </button>
 
-      <template v-else>
+      <div v-else class="composer-expanded-body">
         <textarea
           ref="textareaRef"
           v-model="content"
@@ -949,7 +1251,7 @@ onBeforeUnmount(() => {
             <span>{{ charCount }}</span>
           </div>
         </div>
-      </template>
+      </div>
     </section>
 
     <button
@@ -1405,29 +1707,39 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.draft-preview-card {
+.draft-preview-card,
+.draft-preview-content {
   top: var(--preview-top);
   left: 50%;
-  z-index: 12;
   width: min(560px, var(--stage-width));
   max-height: min(280px, calc(100vh - var(--preview-top) - 28px));
   max-height: min(280px, calc(100dvh - var(--preview-top) - 28px));
   padding: 20px 22px 22px;
   border-radius: 36px;
   color: rgba(255, 255, 255, 0.94);
+  contain: layout paint style;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-50%) translateY(18px) scale(0.96);
-  transition:
-    opacity 220ms ease,
-    transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translate3d(-50%, -34px, 0) scale(0.9);
+  transform-origin: 50% 0;
+  backface-visibility: hidden;
   will-change: opacity, transform;
 }
 
-.draft-preview-card.visible {
+.draft-preview-card {
+  z-index: 20;
+}
+
+.draft-preview-content {
+  position: absolute;
+  z-index: 21;
+}
+
+.draft-preview-card.visible,
+.draft-preview-content.visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0) scale(1);
+  transform: translate3d(-50%, 0, 0) scale(1);
 }
 
 .draft-preview-card::before {
@@ -1532,6 +1844,11 @@ onBeforeUnmount(() => {
 .send-button:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.78);
   outline-offset: 3px;
+}
+
+.composer-expanded-body {
+  position: relative;
+  z-index: 1;
 }
 
 .composer-input {
@@ -1834,7 +2151,8 @@ onBeforeUnmount(() => {
     font-size: 14px;
   }
 
-  .draft-preview-card {
+  .draft-preview-card,
+  .draft-preview-content {
     width: var(--stage-width);
     padding: 18px 20px 20px;
   }
