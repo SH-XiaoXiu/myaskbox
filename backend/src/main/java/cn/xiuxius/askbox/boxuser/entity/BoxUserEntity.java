@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -23,6 +24,10 @@ public class BoxUserEntity implements Serializable {
     private String description;
     private Long avatarAttachmentId;
     private Long backgroundAttachmentId;
+
+    @TableField("email_notify_enabled")
+    private Boolean emailNotifyEnabled;
+
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

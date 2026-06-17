@@ -23,4 +23,6 @@ public class BoxProfileUpdateRequest {
     private String avatarBase64;
 
     private String backgroundBase64;
+
+    private Boolean emailNotifyEnabled;
 }

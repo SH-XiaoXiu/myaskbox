@@ -55,6 +55,7 @@ public class AdminBoxController {
                 request.getDisplayName(),
                 request.getDescription() == null ? "" : request.getDescription(),
                 request.getAvatarBase64(),
-                request.getBackgroundBase64()));
+                request.getBackgroundBase64(),
+                request.getEmailNotifyEnabled()));
     }
 }

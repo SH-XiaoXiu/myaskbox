@@ -49,8 +49,25 @@ public class QuestionController {
         // 获取客户端 IP 和 User-Agent 用于审计
         String ip = RequestLogFilter.resolveClientIp(httpRequest);
         String ua = httpRequest.getHeader("User-Agent");
-        questionService.submit(slug, request.getAttachmentId(), request.getQuestion(), ip, ua);
+        questionService.submit(
+                slug, request.getAttachmentId(), request.getQuestion(), ip, ua, requestOrigin(httpRequest));
         return R.ok();
+    }
+
+    private String requestOrigin(HttpServletRequest request) {
+        String origin = request.getHeader("Origin");
+        if (origin != null && !origin.isBlank()) {
+            return origin;
+        }
+        String forwardedProto = request.getHeader("X-Forwarded-Proto");
+        String forwardedHost = request.getHeader("X-Forwarded-Host");
+        if (forwardedProto != null && !forwardedProto.isBlank() && forwardedHost != null && !forwardedHost.isBlank()) {
+            return forwardedProto + "://" + forwardedHost;
+        }
+        return request.getScheme() + "://" + request.getServerName()
+                + ((request.getServerPort() == 80 || request.getServerPort() == 443)
+                        ? ""
+                        : ":" + request.getServerPort());
     }
 
     @GetMapping

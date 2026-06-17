@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,'Microsoft YaHei',sans-serif;color:#111827;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f7fb;padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+          <tr>
+            <td style="padding:28px 30px 8px;">
+              <h1 style="margin:0;font-size:22px;line-height:1.35;color:#111827;">{{title}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 30px 0;font-size:14px;line-height:1.8;color:#4b5563;">
+              {{description}}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 30px 0;">
+              <div style="border-left:4px solid #111827;background:#f9fafb;border-radius:10px;padding:16px 18px;font-size:15px;line-height:1.8;color:#111827;white-space:pre-wrap;">{{question}}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 30px 12px;">
+              <a href="{{replyUrl}}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;border-radius:999px;padding:12px 18px;font-size:14px;font-weight:700;">免登录回复</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 30px 28px;font-size:13px;line-height:1.7;color:#6b7280;">
+              回复链接 {{expiresDays}} 天内有效，且只能使用一次。如果按钮无法打开，请复制下面的地址：<br>
+              <span style="word-break:break-all;color:#374151;">{{replyUrl}}</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

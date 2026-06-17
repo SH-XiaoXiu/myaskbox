@@ -115,11 +115,12 @@ public class BoxUserServiceImpl implements BoxUserService {
             String displayName,
             String description,
             String avatarBase64,
-            String backgroundBase64) {
+            String backgroundBase64,
+            Boolean emailNotifyEnabled) {
         BoxUserEntity b = repo.findByUserId(userId);
         if (b == null) throw new BizException(ErrorCodes.BOX_NOT_FOUND);
         updateAttachments(b, avatarBase64, backgroundBase64);
-        return updateBoxEntity(b, slug, displayName, description);
+        return updateBoxEntity(b, slug, displayName, description, emailNotifyEnabled);
     }
 
     @Override
@@ -130,13 +131,15 @@ public class BoxUserServiceImpl implements BoxUserService {
             String displayName,
             String description,
             String avatarBase64,
-            String backgroundBase64) {
+            String backgroundBase64,
+            Boolean emailNotifyEnabled) {
         BoxUserEntity b = getById(id);
         updateAttachments(b, avatarBase64, backgroundBase64);
-        return updateBoxEntity(b, slug, displayName, description);
+        return updateBoxEntity(b, slug, displayName, description, emailNotifyEnabled);
     }
 
-    private BoxProfileView updateBoxEntity(BoxUserEntity b, String slug, String displayName, String description) {
+    private BoxProfileView updateBoxEntity(
+            BoxUserEntity b, String slug, String displayName, String description, Boolean emailNotifyEnabled) {
         String normalizedSlug = slug == null ? "" : slug.trim();
         BoxUserEntity sameSlugBox = repo.findBySlug(normalizedSlug);
         if (sameSlugBox != null && !sameSlugBox.getId().equals(b.getId()))
@@ -144,6 +147,9 @@ public class BoxUserServiceImpl implements BoxUserService {
         b.setSlug(normalizedSlug)
                 .setDisplayName(displayName == null ? "" : displayName.trim())
                 .setDescription(description == null ? "" : description.trim());
+        if (emailNotifyEnabled != null) {
+            b.setEmailNotifyEnabled(emailNotifyEnabled);
+        }
         repo.update(b);
         return toProfileView(b);
     }
@@ -158,7 +164,8 @@ public class BoxUserServiceImpl implements BoxUserService {
                 .setUserId(userId)
                 .setSlug(slug)
                 .setDisplayName(displayName)
-                .setDescription(description);
+                .setDescription(description)
+                .setEmailNotifyEnabled(true);
         repo.insert(b);
         return b;
     }

@@ -33,10 +33,17 @@ public interface BoxUserService {
             String displayName,
             String description,
             String avatarBase64,
-            String backgroundBase64);
+            String backgroundBase64,
+            Boolean emailNotifyEnabled);
 
     BoxProfileView updateBoxById(
-            Long id, String slug, String displayName, String description, String avatarBase64, String backgroundBase64);
+            Long id,
+            String slug,
+            String displayName,
+            String description,
+            String avatarBase64,
+            String backgroundBase64,
+            Boolean emailNotifyEnabled);
 
     BoxUserEntity createBox(Long userId, String slug, String displayName, String description);
 }

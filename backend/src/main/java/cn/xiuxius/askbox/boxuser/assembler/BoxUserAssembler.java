@@ -22,6 +22,7 @@ public final class BoxUserAssembler {
                 entity.getDescription(),
                 avatar,
                 background,
+                entity.getEmailNotifyEnabled(),
                 entity.getCreatedAt());
     }
 

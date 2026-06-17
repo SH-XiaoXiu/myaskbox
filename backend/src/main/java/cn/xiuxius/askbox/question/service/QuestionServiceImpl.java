@@ -5,6 +5,7 @@ import java.time.ZoneOffset;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import cn.xiuxius.askbox.common.PageResult;
 import cn.xiuxius.askbox.question.assembler.QuestionAssembler;
 import cn.xiuxius.askbox.question.entity.QuestionEntity;
 import cn.xiuxius.askbox.question.enums.QuestionStatus;
+import cn.xiuxius.askbox.question.event.QuestionSubmittedEvent;
 import cn.xiuxius.askbox.question.repository.QuestionRepository;
 import cn.xiuxius.askbox.question.view.AdminQuestionView;
 import cn.xiuxius.askbox.question.view.PendingQuestionView;
@@ -54,10 +56,11 @@ public class QuestionServiceImpl implements QuestionService {
     private final BoxUserRepository boxUserRepository;
     private final AnswerService answerService;
     private final AttachmentService attachmentService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
-    public void submit(String slug, Long attachmentId, String question, String ip, String userAgent) {
+    public void submit(String slug, Long attachmentId, String question, String ip, String userAgent, String origin) {
         // 1. 通过 slug 找到提问箱
         BoxUserEntity box = boxUserService.getBySlug(slug);
         AttachmentView attachment = attachmentService.getById(attachmentId);
@@ -74,6 +77,7 @@ public class QuestionServiceImpl implements QuestionService {
                 .setIp(ip)
                 .setUserAgent(userAgent);
         questionRepository.insert(q);
+        eventPublisher.publishEvent(new QuestionSubmittedEvent(q.getId(), origin));
         log.info("QuestionEntity submitted to box '{}': id={} ip={}", slug, q.getId(), ip);
     }
 

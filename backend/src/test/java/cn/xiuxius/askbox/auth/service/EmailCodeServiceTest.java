@@ -29,7 +29,7 @@ class EmailCodeServiceTest {
     private ValueOperations<String, String> valueOperations;
 
     @Mock
-    private RegisterMailService registerMailService;
+    private AsyncEmailCodeMailService asyncEmailCodeMailService;
 
     @InjectMocks
     private EmailCodeService service;
@@ -49,7 +49,7 @@ class EmailCodeServiceTest {
         verify(valueOperations)
                 .set(eq("askbox:email-code:login:user@example.com"), anyString(), eq(Duration.ofMinutes(10)));
         verify(redisTemplate).delete("askbox:email-attempt:login:user@example.com");
-        verify(registerMailService).sendLoginCode(eq("user@example.com"), anyString(), eq(10));
+        verify(asyncEmailCodeMailService).send(eq("user@example.com"), anyString(), eq(10), eq("login"));
     }
 
     @Test

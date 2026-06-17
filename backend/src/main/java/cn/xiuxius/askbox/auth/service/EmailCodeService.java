@@ -22,7 +22,7 @@ public class EmailCodeService {
     private static final String PURPOSE_LOGIN = "login";
 
     private final StringRedisTemplate redisTemplate;
-    private final RegisterMailService registerMailService;
+    private final AsyncEmailCodeMailService asyncEmailCodeMailService;
 
     public void sendRegisterCode(String email) {
         send(email, PURPOSE_REGISTER);
@@ -50,17 +50,7 @@ public class EmailCodeService {
         String code = RandomUtil.randomNumbers(6);
         redisTemplate.opsForValue().set(codeKey(purpose, normalized), code, Duration.ofMinutes(TTL_MINUTES));
         redisTemplate.delete(attemptKey(purpose, normalized));
-        try {
-            if (PURPOSE_LOGIN.equals(purpose)) {
-                registerMailService.sendLoginCode(normalized, code, TTL_MINUTES);
-            } else {
-                registerMailService.sendRegisterCode(normalized, code, TTL_MINUTES);
-            }
-        } catch (RuntimeException ex) {
-            redisTemplate.delete(codeKey(purpose, normalized));
-            redisTemplate.delete(cooldownKey);
-            throw ex;
-        }
+        asyncEmailCodeMailService.send(normalized, code, TTL_MINUTES, purpose);
     }
 
     private void verify(String email, String code, String purpose) {

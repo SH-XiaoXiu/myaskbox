@@ -12,4 +12,5 @@ public record BoxProfileView(
         String description,
         AttachmentView avatar,
         AttachmentView background,
+        Boolean emailNotifyEnabled,
         OffsetDateTime createdAt) {}
