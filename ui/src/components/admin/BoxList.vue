@@ -73,9 +73,7 @@ async function submitEdit() {
       editingBox.value.displayName = editForm.value.displayName
       editingBox.value.description = editForm.value.description
       showSuccessToast('已更新')
-    } catch (err) {
-      showSuccessToast(err.message || '更新失败')
-    }
+    } catch {}
   }
   showEditSheet.value = false
 }

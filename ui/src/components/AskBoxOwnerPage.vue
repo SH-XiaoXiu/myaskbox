@@ -2,6 +2,7 @@
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { showSuccessToast, showToast } from "vant";
 import { pageBackground } from "../assets/background";
 import { useAuthStore } from "../stores/auth";
 import { formatTime } from "../utils";
@@ -134,7 +135,6 @@ const activeTab = ref("pending");
 const selectedQuestion = ref(null);
 const answerText = ref("");
 const answerError = ref(false);
-const toastMessage = ref("");
 const profileDraft = reactive({
   displayName: boxProfile.value.displayName,
   slug: boxProfile.value.slug,
@@ -144,7 +144,6 @@ const profileDraft = reactive({
 let liquidGlass = null;
 let initToken = 0;
 let refreshFrame = 0;
-let toastTimer = 0;
 let stableRefreshTimers = [];
 
 const tabs = [
@@ -209,14 +208,6 @@ const canPublish = computed(() => answerText.value.trim().length > 0);
 
 function configJson(config) {
   return JSON.stringify(config);
-}
-
-function showToast(message) {
-  window.clearTimeout(toastTimer);
-  toastMessage.value = message;
-  toastTimer = window.setTimeout(() => {
-    toastMessage.value = "";
-  }, 2200);
 }
 
 function scheduleGlassRefresh(element = rootRef.value) {
@@ -359,7 +350,7 @@ async function publishSelected() {
   await handlePublishAnswer(question.id, text);
   selectedQuestion.value = null;
   answerText.value = text;
-  showToast("回答已发布");
+  showSuccessToast("回答已发布");
 }
 
 async function dismissSelected() {
@@ -368,7 +359,7 @@ async function dismissSelected() {
   await handleDismiss(question.id);
   selectedQuestion.value = null;
   answerText.value = "";
-  showToast("问题已驳回");
+  showSuccessToast("问题已驳回");
 }
 
 function profilePayload(extra = {}) {
@@ -383,10 +374,8 @@ function profilePayload(extra = {}) {
 async function saveProfile() {
   try {
     await handleUpdateProfile(profilePayload());
-    showToast("设置已保存");
-  } catch (error) {
-    showToast(error?.message || "保存失败");
-  }
+    showSuccessToast("设置已保存");
+  } catch {}
   nextTick(() => scheduleGlassRefresh(rootRef.value));
 }
 
@@ -398,10 +387,8 @@ function handleBackgroundFile(event) {
   reader.onload = async () => {
     try {
       await handleUpdateProfile(profilePayload({ backgroundBase64: String(reader.result || "") }));
-      showToast("背景已更新");
-    } catch (error) {
-      showToast(error?.message || "背景上传失败");
-    }
+      showSuccessToast("背景已更新");
+    } catch {}
     nextTick(() => scheduleGlassRefresh(rootRef.value));
   };
   reader.readAsDataURL(file);
@@ -410,10 +397,8 @@ function handleBackgroundFile(event) {
 async function clearBackground() {
   try {
     await handleUpdateProfile(profilePayload({ backgroundBase64: "" }));
-    showToast("已使用默认背景");
-  } catch (error) {
-    showToast(error?.message || "清空失败");
-  }
+    showSuccessToast("已使用默认背景");
+  } catch {}
   nextTick(() => scheduleGlassRefresh(rootRef.value));
 }
 
@@ -430,10 +415,8 @@ function handleAvatarFile(event) {
   reader.onload = async () => {
     try {
       await handleUpdateProfile(profilePayload({ avatarBase64: String(reader.result || "") }));
-      showToast("头像已更新");
-    } catch (error) {
-      showToast(error?.message || "头像上传失败");
-    }
+      showSuccessToast("头像已更新");
+    } catch {}
     nextTick(() => scheduleGlassRefresh(rootRef.value));
   };
   reader.readAsDataURL(file);
@@ -443,7 +426,7 @@ async function copyPublicUrl() {
   const url = `${window.location.origin}${publicUrl.value}`;
   try {
     await navigator.clipboard?.writeText(url);
-    showToast("公开页链接已复制");
+    showSuccessToast("公开页链接已复制");
   } catch {
     showToast(url);
   }
@@ -494,7 +477,6 @@ onBeforeUnmount(() => {
   initToken += 1;
   window.removeEventListener("resize", handleResize);
   if (refreshFrame) cancelAnimationFrame(refreshFrame);
-  window.clearTimeout(toastTimer);
   stableRefreshTimers.forEach((timer) => window.clearTimeout(timer));
   liquidGlass?.destroy();
   liquidGlass = null;
@@ -755,10 +737,6 @@ onBeforeUnmount(() => {
       </template>
     </aside>
 
-    <div v-if="toastMessage" class="owner-toast" role="status">
-      <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>
-      <span>{{ toastMessage }}</span>
-    </div>
   </main>
 </template>
 
@@ -1497,23 +1475,6 @@ onBeforeUnmount(() => {
 
 .published-answer.muted p {
   color: rgba(255, 255, 255, 0.62);
-}
-
-.owner-toast {
-  position: absolute;
-  top: 36px;
-  left: 50%;
-  z-index: 30;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.58);
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
-  font-weight: 650;
-  transform: translateX(-50%);
 }
 
 @keyframes editor-shake {

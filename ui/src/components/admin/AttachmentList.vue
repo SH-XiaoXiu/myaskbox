@@ -133,9 +133,7 @@ async function submitForm() {
       showSuccessToast('已创建')
     }
     showFormSheet.value = false
-  } catch (err) {
-    showSuccessToast(err.message || '操作失败')
-  }
+  } catch {}
 }
 
 async function handleDelete(attachment) {

@@ -10,6 +10,7 @@ import {
   watch,
 } from "vue";
 import { useRoute } from "vue-router";
+import { showFailToast, showSuccessToast } from "vant";
 import {
   getAnonymousAvatars,
   getPublicBoxProfile,
@@ -107,7 +108,6 @@ const content = ref("");
 const sending = ref(false);
 const selectedQA = ref(null);
 const detailVisible = ref(false);
-const toastMessage = ref("");
 const avatarScrollFrame = ref(0);
 const avatarRecenterTimer = ref(0);
 const qaScrollFrame = ref(0);
@@ -115,7 +115,6 @@ const qaScrollFrame = ref(0);
 let liquidGlass = null;
 let initToken = 0;
 let glassRefreshFrame = 0;
-let toastTimer = 0;
 let composerAnimation = null;
 let composerToolsAnimation = null;
 let draftPreviewAnimation = null;
@@ -866,7 +865,9 @@ async function handleSend() {
     await doSendQuestion(text);
   } catch (error) {
     sending.value = false;
-    showToast("投递失败，请稍后再试");
+    if (!error?.isApiError) {
+      showFailToast(error?.message || "投递失败，请稍后再试");
+    }
     scheduleGlassRefresh(rootRef.value);
     console.error("Failed to send question", error);
     return;
@@ -875,7 +876,7 @@ async function handleSend() {
   sending.value = false;
   content.value = "";
   await closeComposer();
-  showToast("问题已投递，我会尽快回答");
+  showSuccessToast("问题已投递，我会尽快回答");
 
   // 刷新列表以显示新问题（如果该箱自动发布的话）
   loadPublishedQA(true);
@@ -883,14 +884,6 @@ async function handleSend() {
   await nextTick();
   resetTextareaScroll();
   scheduleGlassRefresh(rootRef.value);
-}
-
-function showToast(message) {
-  window.clearTimeout(toastTimer);
-  toastMessage.value = message;
-  toastTimer = window.setTimeout(() => {
-    toastMessage.value = "";
-  }, 2400);
 }
 
 function onComposerKeydown(event) {
@@ -1033,7 +1026,6 @@ onBeforeUnmount(() => {
   if (draftPreviewMeasureFrame) cancelAnimationFrame(draftPreviewMeasureFrame);
   if (qaMotionState.settleFrame) cancelAnimationFrame(qaMotionState.settleFrame);
   window.clearTimeout(avatarRecenterTimer.value);
-  window.clearTimeout(toastTimer);
   stopAnimation(composerAnimation);
   stopAnimation(composerToolsAnimation);
   stopDraftPreviewAnimations();
@@ -1268,10 +1260,6 @@ onBeforeUnmount(() => {
       <i v-else class="ri-loader-4-line is-spinning" aria-hidden="true"></i>
     </button>
 
-    <div v-if="toastMessage" class="status-toast" role="status">
-      <i class="ri-checkbox-circle-fill" aria-hidden="true"></i>
-      <span>{{ toastMessage }}</span>
-    </div>
   </main>
 </template>
 
@@ -2045,38 +2033,9 @@ onBeforeUnmount(() => {
   animation: spin 760ms linear infinite;
 }
 
-.status-toast {
-  position: absolute;
-  top: 34px;
-  left: 50%;
-  z-index: 30;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.62);
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
-  font-weight: 620;
-  transform: translateX(-50%);
-  animation: toast-in 260ms ease both;
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -10px) scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
   }
 }
 
@@ -2087,8 +2046,7 @@ onBeforeUnmount(() => {
   .draft-preview-card,
   .composer-card,
   .avatar-selector,
-  .send-button,
-  .status-toast {
+  .send-button {
     animation: none;
     transition: none;
   }

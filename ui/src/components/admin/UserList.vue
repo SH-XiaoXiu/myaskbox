@@ -108,9 +108,7 @@ async function submitForm() {
       users.value.unshift(newUser)
       showSuccessToast('已创建')
     }
-  } catch (err) {
-    showSuccessToast(err.message || '操作失败')
-  }
+  } catch {}
   showFormSheet.value = false
 }
 
@@ -131,9 +129,7 @@ async function submitRole() {
       await assignUserRoles(roleUser.value.id, roleForm.value)
       roleUser.value.roles = [...roleForm.value]
       showSuccessToast('角色已更新')
-    } catch (err) {
-      showSuccessToast(err.message || '操作失败')
-    }
+    } catch {}
   }
   showRoleSheet.value = false
 }

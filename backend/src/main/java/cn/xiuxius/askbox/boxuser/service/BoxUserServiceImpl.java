@@ -140,7 +140,7 @@ public class BoxUserServiceImpl implements BoxUserService {
         String normalizedSlug = slug == null ? "" : slug.trim();
         BoxUserEntity sameSlugBox = repo.findBySlug(normalizedSlug);
         if (sameSlugBox != null && !sameSlugBox.getId().equals(b.getId()))
-            throw new BizException(ErrorCodes.VALIDATION_ERROR, "slug 已被占用");
+            throw new BizException(ErrorCodes.VALIDATION_ERROR, "地址已被占用");
         b.setSlug(normalizedSlug)
                 .setDisplayName(displayName == null ? "" : displayName.trim())
                 .setDescription(description == null ? "" : description.trim());
