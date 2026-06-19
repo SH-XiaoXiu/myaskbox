@@ -4,13 +4,16 @@ import {
   loginWithCode as apiLoginWithCode,
   register as apiRegister,
   getMe,
+  updateProfile as apiUpdateProfile,
+  sendEmailChangeCode as apiSendEmailChangeCode,
+  changeEmail as apiChangeEmail,
   logout as apiLogout,
 } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || null,
-    user: null, // { id, username, email, roles, permissions }
+    user: null, // { id, username, email, displayName, avatar, roles, permissions }
   }),
 
   getters: {
@@ -56,6 +59,20 @@ export const useAuthStore = defineStore('auth', {
       if (!this.user) {
         await this.fetchUser()
       }
+      return this.user
+    },
+
+    async updateProfile(data) {
+      this.user = await apiUpdateProfile(data)
+      return this.user
+    },
+
+    async sendEmailChangeCode(email) {
+      await apiSendEmailChangeCode(email)
+    },
+
+    async changeEmail(email, code) {
+      this.user = await apiChangeEmail(email, code)
       return this.user
     },
 

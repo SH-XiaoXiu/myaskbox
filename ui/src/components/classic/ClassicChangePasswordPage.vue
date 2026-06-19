@@ -61,7 +61,7 @@ async function submit() {
 </script>
 
 <template>
-  <ClassicShell title="修改密码" subtitle="确认当前密码后设置新密码" icon="ri-lock-password-line">
+  <ClassicShell title="修改密码" subtitle="确认当前密码后设置新密码">
     <article class="classic-card password-card">
       <van-nav-bar title="账号安全" left-arrow @click-left="router.push(targetPath)" />
       <form class="form-stack" @submit.prevent="submit">

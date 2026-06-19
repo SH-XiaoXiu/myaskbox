@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <ClassicShell title="注册 AskBox" subtitle="创建你的匿名提问箱" icon="ri-user-add-line">
+  <ClassicShell title="注册 AskBox" subtitle="创建你的匿名提问箱">
     <article ref="cardRef" class="classic-card register-card" role="form" aria-label="注册表单">
       <van-loading v-if="loadingConfig" class="center-state" size="24" />
       <van-empty v-else-if="!enabled" image="error" description="当前暂未开放注册">

@@ -8,10 +8,6 @@ defineProps({
     type: String,
     default: '匿名提问箱',
   },
-  icon: {
-    type: String,
-    default: 'ri-question-answer-line',
-  },
 })
 </script>
 
@@ -19,11 +15,11 @@ defineProps({
   <main class="classic-shell classic-page classic-enter">
     <header class="classic-shell__brand">
       <span class="classic-shell__mark">
-        <i :class="icon" aria-hidden="true"></i>
+        <img src="/icon.svg" alt="" />
       </span>
       <span>
         <strong>{{ title }}</strong>
-        <em>{{ subtitle }}</em>
+        <em v-if="subtitle">{{ subtitle }}</em>
       </span>
     </header>
     <section class="classic-shell__body">
@@ -56,14 +52,16 @@ defineProps({
   place-items: center;
   width: 42px;
   height: 42px;
-  border-radius: 8px;
-  background: var(--classic-primary);
-  color: #fff;
-  box-shadow: 0 10px 22px rgba(47, 111, 237, 0.18);
+  overflow: hidden;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(47, 111, 237, 0.12);
 }
 
-.classic-shell__mark i {
-  font-size: 22px;
+.classic-shell__mark img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
 }
 
 .classic-shell__brand strong,

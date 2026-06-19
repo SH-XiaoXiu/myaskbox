@@ -19,6 +19,12 @@ public interface AuthService {
 
     MeView current();
 
+    MeView updateProfile(String displayName, String avatarObjectKey);
+
+    void sendEmailChangeCode(String email);
+
+    MeView changeEmail(String email, String code);
+
     void logout();
 
     void changePassword(String currentPassword, String newPassword, String confirmPassword);

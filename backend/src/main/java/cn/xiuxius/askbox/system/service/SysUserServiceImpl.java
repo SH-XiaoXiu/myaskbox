@@ -202,7 +202,7 @@ public class SysUserServiceImpl implements SysUserService {
                 ? sysUserRoleMapper.selectAllPermissionCodes()
                 : sysUserRoleMapper.selectPermissionCodesByUserId(userId);
         Set<String> perms = new HashSet<>(permCodes);
-        return new CurrentUser(userId, user.getUsername(), user.getEmail(), roles, perms);
+        return new CurrentUser(userId, user.getUsername(), user.getEmail(), user.getDisplayName(), roles, perms);
     }
 
     private String normalizeEmail(String email) {

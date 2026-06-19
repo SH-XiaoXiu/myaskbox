@@ -36,6 +36,11 @@ export default {
   ],
   afterAdmin: [
     {
+      path: '/reply/:token',
+      name: 'reply-token',
+      component: () => import('@/components/classic/ClassicReplyTokenPage.vue'),
+    },
+    {
       path: '/box/:slug',
       name: 'ask',
       component: () => import('@/components/classic/ClassicAskBoxPage.vue'),

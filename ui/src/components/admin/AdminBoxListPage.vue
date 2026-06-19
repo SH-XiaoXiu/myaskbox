@@ -126,7 +126,7 @@ async function submitEdit() {
 <style scoped>
 .page { display: flex; flex-direction: column; height: 100%; }
 .page-sticky { flex-shrink: 0; }
-.page-scroll { flex: 1; overflow-y: auto; padding: 0 0 12px; }
+.page-scroll { flex: 1; overflow-y: auto; padding: 12px 0; }
 .cell-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .slug-badge { padding: 1px 6px; background: #f0f2f5; border-radius: 4px; font-size: 11px; color: #1989fa; font-family: "SF Mono", "Cascadia Code", monospace; }
 .question-count { font-weight: 600; color: #323233; font-size: 14px; }

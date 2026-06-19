@@ -76,7 +76,7 @@ public class BoxController {
     }
 
     @GetMapping("/questions/pending")
-    @Operation(summary = "获取待回答问题列表", description = "按 created_at ASC 排序（最早的在前）")
+    @Operation(summary = "获取待回答问题列表", description = "按 created_at DESC 排序（最近的在前）")
     public R<PageResult<PendingQuestionView>> pending(
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") long pageSize) {
@@ -103,7 +103,7 @@ public class BoxController {
     }
 
     @DeleteMapping("/questions/{id}")
-    @Operation(summary = "删除已驳回的问题", description = "物理删除已驳回的问题及其回答。")
+    @Operation(summary = "删除自己的问题", description = "物理删除当前箱主自己的已发布或已驳回问题及其回答。")
     public R<Void> delete(@Parameter(description = "问题 ID") @PathVariable Long id) {
         questionService.delete(currentBoxUserId(), id);
         return R.ok();

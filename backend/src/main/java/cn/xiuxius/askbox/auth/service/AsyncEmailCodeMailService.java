@@ -19,6 +19,8 @@ public class AsyncEmailCodeMailService {
         try {
             if ("login".equals(purpose)) {
                 registerMailService.sendLoginCode(email, code, minutes);
+            } else if ("email-change".equals(purpose)) {
+                registerMailService.sendEmailChangeCode(email, code, minutes);
             } else {
                 registerMailService.sendRegisterCode(email, code, minutes);
             }

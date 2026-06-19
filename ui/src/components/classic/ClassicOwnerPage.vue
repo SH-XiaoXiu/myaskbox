@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { showToast } from 'vant'
+import { showConfirmDialog, showToast } from 'vant'
 import { uploadAttachmentObject } from '@/api/attachments'
 import { useAuthStore } from '@/stores/auth'
 import { formatTime } from '@/utils'
@@ -38,15 +38,27 @@ const selectedQuestion = ref(null)
 const detailOpen = ref(false)
 const answerText = ref('')
 const answerError = ref('')
-const avatarInputRef = ref(null)
-const settingsOpen = ref(false)
+const accountAvatarInputRef = ref(null)
+const accountSheetOpen = ref(false)
+const boxSettingsOpen = ref(false)
+const emailSheetOpen = ref(false)
 const refreshing = ref(false)
 const publicContentRef = ref(null)
+const accountAvatarPreview = ref('')
 const profileDraft = reactive({
   displayName: '',
   slug: '',
   description: '',
 })
+const accountDraft = reactive({
+  displayName: '',
+})
+const emailDraft = reactive({
+  email: '',
+  code: '',
+})
+const emailSending = ref(false)
+const emailSaving = ref(false)
 
 let pollTimer = 0
 
@@ -71,6 +83,10 @@ const questionStatusIndex = computed({
 const publicUrl = computed(() => `/box/${boxProfile.value.slug}`)
 const fullPublicUrl = computed(() => `${window.location.origin}${publicUrl.value}`)
 const activeQuestionTab = computed(() => questionTabs.find((tab) => tab.id === questionStatusTab.value) || questionTabs[0])
+const accountName = computed(() => auth.user?.displayName || auth.user?.username || '箱主')
+const pageTitle = computed(() => `${accountName.value}的提问箱`)
+const accountEmail = computed(() => auth.user?.email || auth.user?.username || '')
+const accountAvatar = computed(() => accountAvatarPreview.value || auth.user?.avatar || boxProfile.value.avatar)
 const displayedQuestions = computed(() => {
   if (questionStatusTab.value === 'pending') return pendingQuestions.value
   if (questionStatusTab.value === 'published') return publishedQA.value
@@ -79,7 +95,7 @@ const displayedQuestions = computed(() => {
 })
 const selectedIsPending = computed(() => questionStatusTab.value === 'pending' && !selectedQuestion.value?.answer && selectedQuestion.value)
 const selectedIsPublished = computed(() => !!selectedQuestion.value?.answer)
-const selectedIsReadOnly = computed(() => questionStatusTab.value === 'dismissed' && selectedQuestion.value)
+const selectedCanDelete = computed(() => !!selectedQuestion.value && !selectedIsPending.value)
 const answerCount = computed(() => `${answerText.value.length} / 5000`)
 const canPublish = computed(() => answerText.value.trim().length > 0)
 
@@ -256,12 +272,25 @@ async function dismissSelected() {
 
 async function deleteSelected() {
   const question = selectedQuestion.value
-  if (!question || questionStatusTab.value !== 'dismissed') return
+  if (!question || !selectedCanDelete.value) return
+  try {
+    await showConfirmDialog({
+      title: '删除这个问题？',
+      message: '删除后问题和回答都会移除，公开页也不会再显示。',
+      confirmButtonText: '删除',
+      confirmButtonColor: '#f04438',
+    })
+  } catch {
+    return
+  }
   await deleteQuestion(question.id)
+  pendingQuestions.value = pendingQuestions.value.filter((q) => q.id !== question.id)
+  publishedQA.value = publishedQA.value.filter((q) => q.id !== question.id)
   dismissedQuestions.value = dismissedQuestions.value.filter((q) => q.id !== question.id)
   detailOpen.value = false
   selectedQuestion.value = null
   showToast('已删除')
+  await Promise.all([loadStats(), publicContentRef.value?.refreshPublicContent?.() ?? Promise.resolve()])
 }
 
 function profilePayload(extra = {}) {
@@ -286,7 +315,7 @@ async function handleUpdateProfile(data) {
 async function saveProfile() {
   try {
     await handleUpdateProfile(profilePayload())
-    settingsOpen.value = false
+    boxSettingsOpen.value = false
     showToast('设置已保存')
   } catch (error) {
     showToast(error?.message || '保存失败')
@@ -319,31 +348,90 @@ async function clearBackground() {
   }
 }
 
-function openAvatarPicker() {
-  avatarInputRef.value?.click()
+function openAccountAvatarPicker() {
+  accountAvatarInputRef.value?.click()
 }
 
-function openSettings() {
+function openBoxSettings() {
   profileDraft.displayName = boxProfile.value.displayName || ''
   profileDraft.slug = boxProfile.value.slug || ''
   profileDraft.description = boxProfile.value.description || ''
-  settingsOpen.value = true
+  boxSettingsOpen.value = true
 }
 
-async function handleAvatarFile(event) {
+function openAccountSheet() {
+  accountDraft.displayName = auth.user?.displayName || auth.user?.username || ''
+  accountAvatarPreview.value = ''
+  accountSheetOpen.value = true
+}
+
+function openEmailSheet() {
+  emailDraft.email = accountEmail.value
+  emailDraft.code = ''
+  accountSheetOpen.value = false
+  emailSheetOpen.value = true
+}
+
+async function handleAccountAvatarFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
   if (!file) return
   const preview = URL.createObjectURL(file)
-  boxProfile.value = { ...boxProfile.value, avatar: preview }
+  accountAvatarPreview.value = preview
   try {
-    const objectKey = await uploadAttachmentObject(file, 'BOX_OWNER_AVATAR')
-    await handleUpdateProfile(profilePayload({ avatarObjectKey: objectKey }))
+    const objectKey = await uploadAttachmentObject(file, 'ACCOUNT_AVATAR')
+    await auth.updateProfile({ displayName: accountDraft.displayName || accountName.value, avatarObjectKey: objectKey })
+    await loadProfile()
     showToast('头像已更新')
   } catch (error) {
     showToast(error?.message || '头像上传失败')
   } finally {
     URL.revokeObjectURL(preview)
+    accountAvatarPreview.value = ''
+  }
+}
+
+async function saveAccountProfile() {
+  try {
+    await auth.updateProfile({ displayName: accountDraft.displayName })
+    await loadProfile()
+    accountSheetOpen.value = false
+    showToast('账号资料已保存')
+  } catch (error) {
+    showToast(error?.message || '保存失败')
+  }
+}
+
+async function sendEmailCode() {
+  if (!emailDraft.email.trim()) {
+    showToast('请填写新邮箱')
+    return
+  }
+  emailSending.value = true
+  try {
+    await auth.sendEmailChangeCode(emailDraft.email)
+    showToast('验证码已发送')
+  } catch (error) {
+    showToast(error?.message || '发送失败')
+  } finally {
+    emailSending.value = false
+  }
+}
+
+async function saveEmail() {
+  if (!emailDraft.email.trim() || !emailDraft.code.trim()) {
+    showToast('请填写邮箱和验证码')
+    return
+  }
+  emailSaving.value = true
+  try {
+    await auth.changeEmail(emailDraft.email, emailDraft.code)
+    emailSheetOpen.value = false
+    showToast('邮箱已更新')
+  } catch (error) {
+    showToast(error?.message || '更新失败')
+  } finally {
+    emailSaving.value = false
   }
 }
 
@@ -390,7 +478,7 @@ watch([homeSection, questionStatusTab], () => {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadProfile(), loadStats(), loadPending(true)])
+    await Promise.all([auth.ensureUser(), loadProfile(), loadStats(), loadPending(true)])
     document.addEventListener('visibilitychange', handleVisibilityChange)
     startPolling()
   } catch {
@@ -408,10 +496,16 @@ onBeforeUnmount(() => {
   <main class="classic-owner classic-page classic-enter">
     <van-nav-bar fixed placeholder safe-area-inset-top>
       <template #title>
-        <span class="nav-title">{{ boxProfile.displayName || 'AskBox' }}</span>
+        <span class="nav-title">{{ pageTitle }}</span>
       </template>
       <template #left>
-        <input ref="avatarInputRef" class="hidden-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="handleAvatarFile" />
+        <button class="nav-profile" type="button" aria-label="账号资料" @click="openAccountSheet">
+          <span :style="avatarStyle(accountAvatar)">
+            <img v-if="avatarSrc(accountAvatar)" :src="avatarSrc(accountAvatar)" alt="" />
+            <i v-else class="ri-user-smile-line" aria-hidden="true"></i>
+          </span>
+        </button>
+        <input ref="accountAvatarInputRef" class="hidden-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="handleAccountAvatarFile" />
       </template>
       <template #right>
         <button class="nav-icon" type="button" aria-label="复制公开页" @click="copyPublicUrl">
@@ -478,15 +572,14 @@ onBeforeUnmount(() => {
       </section>
 
       <section v-show="homeSection === 'mine'" class="home-section mine-section">
-        <button class="mine-identity classic-card classic-press" type="button" @click="openSettings">
-          <span class="profile-avatar" :style="avatarStyle(boxProfile.avatar)">
-            <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
+        <button class="mine-identity classic-card classic-press" type="button" @click="openAccountSheet">
+          <span class="profile-avatar" :style="avatarStyle(accountAvatar)">
+            <img v-if="avatarSrc(accountAvatar)" :src="avatarSrc(accountAvatar)" alt="" />
             <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
           </span>
           <span class="mine-identity__body">
-            <strong>{{ boxProfile.displayName || 'AskBox' }}</strong>
-            <small>{{ auth.user?.email || auth.user?.username || '箱主账号' }}</small>
-            <em>{{ publicUrl }}</em>
+            <strong>{{ accountName }}</strong>
+            <small>{{ accountEmail || '箱主账号' }}</small>
           </span>
           <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
         </button>
@@ -506,13 +599,13 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section class="mine-group" aria-label="公开资料">
-          <header>公开资料</header>
-          <button class="mine-row" type="button" @click="openSettings">
-            <span class="mine-row__icon"><i class="ri-id-card-line" aria-hidden="true"></i></span>
+        <section class="mine-group" aria-label="提问箱设置">
+          <header>提问箱</header>
+          <button class="mine-row" type="button" @click="openBoxSettings">
+            <span class="mine-row__icon"><i class="ri-inbox-2-line" aria-hidden="true"></i></span>
             <span class="mine-row__text">
-              <strong>资料与外观</strong>
-              <small>名称、简介、头像、背景</small>
+              <strong>提问箱设置</strong>
+              <small>{{ boxProfile.displayName || '未命名' }} · {{ publicUrl }}</small>
             </span>
             <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
           </button>
@@ -526,27 +619,7 @@ onBeforeUnmount(() => {
           </button>
         </section>
 
-        <section class="mine-group" aria-label="账号安全">
-          <header>账号安全</header>
-          <button class="mine-row" type="button" @click="router.push('/password')">
-            <span class="mine-row__icon"><i class="ri-lock-password-line" aria-hidden="true"></i></span>
-            <span class="mine-row__text">
-              <strong>修改密码</strong>
-              <small>更新登录凭证</small>
-            </span>
-            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
-          </button>
-        </section>
-
-        <section class="mine-group danger-group" aria-label="账户操作">
-          <button class="mine-row danger-row" type="button" @click="handleLogout">
-            <span class="mine-row__icon"><i class="ri-logout-box-r-line" aria-hidden="true"></i></span>
-            <span class="mine-row__text">
-              <strong>退出登录</strong>
-              <small>离开当前账号</small>
-            </span>
-          </button>
-        </section>
+        <button class="logout-button" type="button" @click="handleLogout">退出登录</button>
       </section>
 
       <van-tabbar v-model="homeSection" class="owner-tabbar" fixed safe-area-inset-bottom>
@@ -559,19 +632,73 @@ onBeforeUnmount(() => {
       </van-tabbar>
     </section>
 
-    <van-popup v-model:show="settingsOpen" round position="bottom" :style="{ maxHeight: '88vh' }">
+    <van-popup v-model:show="accountSheetOpen" round position="bottom" :style="{ maxHeight: '82vh' }">
       <section class="settings-sheet">
         <header class="sheet-head">
-          <h2>公开资料</h2>
-          <button class="nav-icon" type="button" aria-label="关闭设置" @click="settingsOpen = false">
+          <h2>账号资料</h2>
+          <button class="nav-icon" type="button" aria-label="关闭账号资料" @click="accountSheetOpen = false">
             <i class="ri-close-line" aria-hidden="true"></i>
           </button>
         </header>
-        <button class="avatar-edit" type="button" :style="avatarStyle(boxProfile.avatar)" @click="openAvatarPicker">
-          <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
-          <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
-          <span>修改头像</span>
+        <button class="avatar-edit" type="button" @click="openAccountAvatarPicker">
+          <span class="avatar-edit__image" :style="avatarStyle(accountAvatar)">
+            <img v-if="avatarSrc(accountAvatar)" :src="avatarSrc(accountAvatar)" alt="" />
+            <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
+          </span>
+          <span class="avatar-edit__label">点击更换</span>
         </button>
+        <div class="settings-fields">
+          <van-field v-model="accountDraft.displayName" label="显示名称" maxlength="100" placeholder="显示名称" />
+          <van-field :model-value="accountEmail" label="邮箱" readonly placeholder="登录邮箱" />
+        </div>
+        <div class="account-actions">
+          <button class="mine-row" type="button" @click="openEmailSheet">
+            <span class="mine-row__text"><strong>更换邮箱</strong></span>
+            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+          </button>
+          <button class="mine-row" type="button" @click="router.push('/password')">
+            <span class="mine-row__text"><strong>修改密码</strong></span>
+            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+          </button>
+        </div>
+        <button class="primary-pill" type="button" @click="saveAccountProfile">
+          <i class="ri-check-line" aria-hidden="true"></i>
+          <span>保存账号资料</span>
+        </button>
+      </section>
+    </van-popup>
+
+    <van-popup v-model:show="emailSheetOpen" round position="bottom" :style="{ maxHeight: '72vh' }">
+      <section class="settings-sheet">
+        <header class="sheet-head">
+          <h2>更换邮箱</h2>
+          <button class="nav-icon" type="button" aria-label="关闭更换邮箱" @click="emailSheetOpen = false">
+            <i class="ri-close-line" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="settings-fields email-fields">
+          <van-field v-model="emailDraft.email" label="新邮箱" type="email" maxlength="200" placeholder="name@example.com" />
+          <van-field v-model="emailDraft.code" label="验证码" maxlength="12" placeholder="邮箱验证码">
+            <template #button>
+              <van-button size="small" plain :loading="emailSending" @click="sendEmailCode">发送</van-button>
+            </template>
+          </van-field>
+        </div>
+        <button class="primary-pill" type="button" :disabled="emailSaving" @click="saveEmail">
+          <van-loading v-if="emailSaving" size="16" color="#fff" />
+          <span v-else>确认更换</span>
+        </button>
+      </section>
+    </van-popup>
+
+    <van-popup v-model:show="boxSettingsOpen" round position="bottom" :style="{ maxHeight: '82vh' }">
+      <section class="settings-sheet">
+        <header class="sheet-head">
+          <h2>提问箱设置</h2>
+          <button class="nav-icon" type="button" aria-label="关闭设置" @click="boxSettingsOpen = false">
+            <i class="ri-close-line" aria-hidden="true"></i>
+          </button>
+        </header>
         <div class="settings-fields">
           <van-field v-model="profileDraft.displayName" label="箱子名称" maxlength="32" placeholder="提问箱名称" />
           <van-field v-model="profileDraft.slug" label="公开地址" maxlength="32" placeholder="URL 标识" />
@@ -595,7 +722,7 @@ onBeforeUnmount(() => {
       </section>
     </van-popup>
 
-    <van-popup v-model:show="detailOpen" round position="bottom" :style="{ maxHeight: '88vh' }">
+    <van-popup v-model:show="detailOpen" round position="bottom" :style="{ height: 'min(72vh, 560px)' }">
       <article v-if="selectedQuestion" class="detail-panel">
         <header class="detail-head">
           <div>
@@ -606,40 +733,43 @@ onBeforeUnmount(() => {
             <i class="ri-close-line" aria-hidden="true"></i>
           </button>
         </header>
-        <p class="detail-question">{{ selectedQuestion.question }}</p>
+        <div class="detail-scroll">
+          <p class="detail-question">{{ selectedQuestion.question }}</p>
 
-        <section v-if="selectedIsPending" class="answer-editor">
-          <van-field
-            v-model="answerText"
-            type="textarea"
-            rows="6"
-            maxlength="5000"
-            autosize
-            show-word-limit
-            placeholder="写下你的回答。"
-            :error-message="answerError"
-          />
-          <footer>
+          <section v-if="selectedIsPending" class="answer-editor">
+            <van-field
+              v-model="answerText"
+              type="textarea"
+              rows="6"
+              maxlength="5000"
+              autosize
+              show-word-limit
+              placeholder="写下你的回答。"
+              :error-message="answerError"
+            />
+          </section>
+
+          <section v-else-if="selectedIsPublished" class="published-answer">
+            <span>公开回答</span>
+            <p>{{ selectedQuestion.answer }}</p>
+          </section>
+
+          <section v-else class="published-answer muted">
+            <span>已驳回</span>
+            <p>这个问题不会显示在公开页。</p>
+          </section>
+        </div>
+
+        <footer class="detail-actions">
+          <van-button v-if="selectedCanDelete" round plain type="danger" @click="deleteSelected">删除</van-button>
+          <template v-if="selectedIsPending">
             <span>{{ answerCount }}</span>
-            <div>
-              <van-button round plain @click="dismissSelected">驳回</van-button>
-              <van-button round type="primary" icon="guide-o" :disabled="!canPublish" @click="publishSelected">
-                发布回答
-              </van-button>
-            </div>
-          </footer>
-        </section>
-
-        <section v-else-if="selectedIsPublished" class="published-answer">
-          <span>公开回答</span>
-          <p>{{ selectedQuestion.answer }}</p>
-        </section>
-
-        <section v-else-if="selectedIsReadOnly" class="published-answer muted">
-          <span>已驳回</span>
-          <p>这个问题不会显示在公开页。</p>
-          <van-button round plain type="danger" @click="deleteSelected">删除</van-button>
-        </section>
+            <van-button round plain @click="dismissSelected">驳回</van-button>
+            <van-button round type="primary" icon="guide-o" :disabled="!canPublish" @click="publishSelected">
+              发布回答
+            </van-button>
+          </template>
+        </footer>
       </article>
     </van-popup>
   </main>
@@ -656,7 +786,8 @@ onBeforeUnmount(() => {
   font-weight: 720;
 }
 
-.nav-icon {
+.nav-icon,
+.nav-profile {
   display: grid;
   place-items: center;
   border: 0;
@@ -665,7 +796,8 @@ onBeforeUnmount(() => {
 }
 
 .profile-avatar img,
-.avatar-edit img,
+.avatar-edit__image img,
+.nav-profile img,
 .mini-avatar img {
   width: 100%;
   height: 100%;
@@ -678,6 +810,26 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   color: var(--classic-text);
   font-size: 20px;
+}
+
+.nav-profile {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.nav-profile span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 50%;
+  background-position: center;
+  background-size: cover;
+  color: var(--classic-primary);
+  font-size: 16px;
 }
 
 .hidden-file-input,
@@ -898,17 +1050,24 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.danger-group {
-  margin-top: 2px;
+.logout-button {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(240, 68, 56, 0.22);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--classic-red);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  transition:
+    background-color 160ms ease,
+    transform 180ms var(--classic-spring);
 }
 
-.danger-row .mine-row__icon {
-  background: rgba(240, 68, 56, 0.08);
-  color: var(--classic-red);
-}
-
-.danger-row .mine-row__text strong {
-  color: var(--classic-red);
+.logout-button:active {
+  background: rgba(240, 68, 56, 0.06);
+  transform: scale(0.992);
 }
 
 .owner-tabs {
@@ -1042,39 +1201,74 @@ time {
 }
 
 .avatar-edit {
-  justify-self: start;
-  position: relative;
+  justify-self: center;
   display: grid;
+  gap: 8px;
   place-items: center;
-  width: 58px;
-  height: 58px;
-  overflow: hidden;
+  min-width: 88px;
+  padding: 0;
   border: 0;
-  border-radius: 14px;
-  background-position: center;
-  background-size: cover;
-  color: var(--classic-primary);
+  background: transparent;
   font: inherit;
 }
 
-.avatar-edit span {
-  position: absolute;
-  right: -6px;
-  bottom: -6px;
+.avatar-edit__image {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 20px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.78);
-  color: #fff;
-  font-size: 10px;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 50%;
+  background-position: center;
+  background-size: cover;
+  color: var(--classic-primary);
+  font-size: 24px;
+  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.08);
+}
+
+.avatar-edit__label {
+  display: grid;
+  place-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--classic-surface-soft);
+  color: var(--classic-muted);
+  font-size: 12px;
+  line-height: 1;
 }
 
 .settings-fields {
   overflow: hidden;
   border: 1px solid var(--classic-line);
   border-radius: 12px;
+}
+
+.email-fields:deep(.van-field__control) {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.email-fields:deep(.van-field__control:focus) {
+  background: transparent;
+}
+
+.email-fields:deep(.van-field__control::selection) {
+  background: rgba(47, 111, 237, 0.18);
+}
+
+.email-fields:deep(.van-field__control:-webkit-autofill) {
+  -webkit-text-fill-color: var(--classic-text);
+  box-shadow: 0 0 0 1000px #fff inset;
+  transition: background-color 9999s ease-out;
+}
+
+.account-actions {
+  overflow: hidden;
+  border: 1px solid var(--classic-line);
+  border-radius: 12px;
+  background: #fff;
 }
 
 .setting-actions {
@@ -1106,15 +1300,22 @@ time {
   font-weight: 650;
 }
 
+.primary-pill:disabled {
+  opacity: 0.6;
+}
+
 .detail-panel {
-  max-height: 88vh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 16px calc(14px + env(safe-area-inset-bottom));
 }
 
 .detail-head {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
@@ -1124,6 +1325,15 @@ time {
   margin: 4px 0 0;
   color: var(--classic-text);
   font-size: 18px;
+}
+
+.detail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 1px 14px;
+  overscroll-behavior: contain;
 }
 
 .detail-question {
@@ -1141,18 +1351,21 @@ time {
   margin-top: 14px;
 }
 
-.answer-editor footer {
+.detail-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(228, 231, 236, 0.82);
   color: var(--classic-muted);
   font-size: 12px;
 }
 
-.answer-editor footer > div {
-  display: flex;
-  gap: 8px;
+.detail-actions > span {
+  margin-right: auto;
 }
 
 .published-answer {

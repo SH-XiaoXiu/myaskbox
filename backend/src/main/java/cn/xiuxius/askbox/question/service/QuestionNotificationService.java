@@ -61,12 +61,11 @@ public class QuestionNotificationService {
                     box.getId(),
                     OffsetDateTime.now(ZoneOffset.UTC).plusDays(REPLY_TOKEN_DAYS));
             String replyUrl = replyUrl(rawToken, event.origin());
-            String subject = "AskBox 收到新问题";
+            String subject = "你的提问箱收到了一个新问题";
             String html = templateService.render(
                     "mail/question-notification.html",
                     Map.of(
                             "title", templateService.html(subject),
-                            "description", templateService.html("你的提问箱收到了一个新问题，可以通过下面的一次性链接免登录回复。"),
                             "question", templateService.html(question.getQuestion()),
                             "replyUrl", templateService.html(replyUrl),
                             "expiresDays", String.valueOf(REPLY_TOKEN_DAYS)));

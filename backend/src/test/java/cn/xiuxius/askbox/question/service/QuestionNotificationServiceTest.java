@@ -82,7 +82,7 @@ class QuestionNotificationServiceTest {
 
         service.sendQuestionNotification(new QuestionSubmittedEvent(10L, "https://fallback.example.com"));
 
-        verify(mailSenderService).sendHtml(eq("owner@example.com"), eq("AskBox 收到新问题"), eq("<html>mail</html>"));
+        verify(mailSenderService).sendHtml(eq("owner@example.com"), eq("你的提问箱收到了一个新问题"), eq("<html>mail</html>"));
         verify(templateService).html(contains("https://askbox.example.com/reply/raw-token"));
     }
 }

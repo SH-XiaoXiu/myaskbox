@@ -10,9 +10,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import cn.xiuxius.askbox.auth.request.ChangePasswordRequest;
+import cn.xiuxius.askbox.auth.request.EmailChangeCodeRequest;
+import cn.xiuxius.askbox.auth.request.EmailChangeRequest;
 import cn.xiuxius.askbox.auth.request.LoginCodeRequest;
 import cn.xiuxius.askbox.auth.request.LoginCodeVerifyRequest;
 import cn.xiuxius.askbox.auth.request.LoginRequest;
+import cn.xiuxius.askbox.auth.request.ProfileUpdateRequest;
 import cn.xiuxius.askbox.auth.request.RegisterCodeRequest;
 import cn.xiuxius.askbox.auth.request.RegisterRequest;
 import cn.xiuxius.askbox.auth.service.AuthService;
@@ -110,9 +113,34 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @Operation(summary = "获取当前用户信息", description = "返回当前登录用户的 id、邮箱、角色列表和权限列表。")
+    @Operation(summary = "获取当前用户信息", description = "返回当前登录用户的 id、邮箱、显示名称、头像、角色列表和权限列表。")
     public R<MeView> me() {
         return R.ok(authService.current());
+    }
+
+    @PutMapping("/profile")
+    @Operation(summary = "更新当前用户资料", description = "更新账号显示名称和账号头像。")
+    public R<MeView> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
+        return R.ok(authService.updateProfile(request.getDisplayName(), request.getAvatarObjectKey()));
+    }
+
+    @PostMapping("/email/code")
+    @Operation(summary = "发送更换邮箱验证码", description = "向新邮箱发送验证码。")
+    @RateLimit(
+            types = {RateLimitType.IP, RateLimitType.USER_AGENT, RateLimitType.CUSTOM},
+            key = "#request.email",
+            capacity = 5,
+            refillTokens = 5,
+            timeWindowSeconds = 60)
+    public R<Void> sendEmailChangeCode(@Valid @RequestBody EmailChangeCodeRequest request) {
+        authService.sendEmailChangeCode(request.getEmail());
+        return R.ok();
+    }
+
+    @PutMapping("/email")
+    @Operation(summary = "更换当前用户邮箱", description = "验证码通过后同时更新登录邮箱和 username。")
+    public R<MeView> changeEmail(@Valid @RequestBody EmailChangeRequest request) {
+        return R.ok(authService.changeEmail(request.getEmail(), request.getCode()));
     }
 
     @PostMapping("/logout")

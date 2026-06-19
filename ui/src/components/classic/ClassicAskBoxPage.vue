@@ -34,13 +34,16 @@ const props = defineProps({
 const routeSlug = computed(() => route.params.slug || 'xiaoxiu')
 const slug = computed(() => props.slugOverride || routeSlug.value)
 
-const boxProfile = ref({ slug: '', displayName: '', description: '', avatar: null })
+const boxProfile = ref({ slug: '', displayName: '', ownerDisplayName: '', description: '', avatar: null })
 const avatarList = ref([])
 const selectedAvatar = ref(null)
 const publishedQA = ref([])
+const qaTotal = ref(0)
 const pageError = ref('')
+const boxMissing = ref(false)
 const qaLoading = ref(false)
 const refreshing = ref(false)
+const qaRefreshing = ref(false)
 const qaPage = ref(1)
 const qaHasMore = ref(false)
 const composerOpen = ref(false)
@@ -72,7 +75,12 @@ const qaMotionState = {
   velocity: 0,
 }
 
-const boxTitle = computed(() => boxProfile.value.displayName?.trim() || boxProfile.value.slug || '')
+const boxName = computed(() => boxProfile.value.displayName?.trim() || boxProfile.value.slug || '')
+const ownerName = computed(() => boxProfile.value.ownerDisplayName?.trim() || boxProfile.value.slug || '')
+const pageTitle = computed(() => {
+  if (boxMissing.value) return '提问箱不存在'
+  return ownerName.value ? `${ownerName.value}的提问箱` : boxName.value
+})
 const boxDescription = computed(() => boxProfile.value.description?.trim() || '')
 const canSend = computed(() => content.value.trim().length > 0 && !sending.value && selectedAvatar.value)
 const avatarLoopOptions = computed(() => {
@@ -113,13 +121,16 @@ async function loadBoxProfile(token = loadRequestToken) {
     boxProfile.value = {
       slug: profile.slug || slug.value,
       displayName: profile.displayName || '',
+      ownerDisplayName: profile.ownerDisplayName || '',
       description: profile.description || '',
       avatar: profile.avatar || null,
       background: profile.background || null,
     }
+    boxMissing.value = false
   } catch (err) {
     if (token !== loadRequestToken) return
-    boxProfile.value = { slug: slug.value, displayName: '', description: '' }
+    boxProfile.value = { slug: slug.value, displayName: '', ownerDisplayName: '', description: '', avatar: null }
+    boxMissing.value = true
     console.error('Failed to load box profile', err)
     throw err
   }
@@ -266,7 +277,7 @@ async function animatePaperPlane() {
   })
 }
 
-async function loadPublishedQA(reset = false, token = loadRequestToken) {
+async function loadPublishedQA(reset = false, token = loadRequestToken, { animate = true } = {}) {
   if (qaLoading.value) return
   qaLoading.value = true
   const page = reset ? 1 : qaPage.value
@@ -283,7 +294,9 @@ async function loadPublishedQA(reset = false, token = loadRequestToken) {
       time: formatTime(q.ts),
       motionIndex: index,
     }))
+    qaRefreshing.value = reset && !animate
     publishedQA.value = reset ? items : [...publishedQA.value, ...items]
+    qaTotal.value = Number(result.total || 0)
     qaPage.value = page + 1
     qaHasMore.value = page < result.totalPages
   } catch (err) {
@@ -292,6 +305,10 @@ async function loadPublishedQA(reset = false, token = loadRequestToken) {
   } finally {
     if (token === loadRequestToken) {
       qaLoading.value = false
+      if (qaRefreshing.value) {
+        await nextTick()
+        qaRefreshing.value = false
+      }
     }
   }
 }
@@ -471,18 +488,19 @@ async function handleSend() {
 async function handlePullRefresh() {
   refreshing.value = true
   try {
-    await resetAndLoadPublicContent()
+    await resetAndLoadPublicContent({ preserveList: true, animateList: false })
   } finally {
     refreshing.value = false
   }
 }
 
-async function resetAndLoadPublicContent() {
+async function resetAndLoadPublicContent({ preserveList = false, animateList = true } = {}) {
   if (qaLoading.value) return
   const token = ++loadRequestToken
   pageError.value = ''
+  boxMissing.value = false
   if (boxProfile.value.slug !== slug.value) {
-    boxProfile.value = { slug: slug.value, displayName: '', description: '', avatar: null }
+    boxProfile.value = { slug: slug.value, displayName: '', ownerDisplayName: '', description: '', avatar: null }
   }
   if (props.showComposer && !avatarList.value.length) {
     avatarList.value = []
@@ -493,12 +511,15 @@ async function resetAndLoadPublicContent() {
   composerOpen.value = false
   composerTouched.value = false
   content.value = ''
-  publishedQA.value = []
+  if (!preserveList) {
+    publishedQA.value = []
+    qaTotal.value = 0
+  }
   qaPage.value = 1
   qaHasMore.value = false
 
   try {
-    const jobs = [loadBoxProfile(token), loadPublishedQA(true, token)]
+    const jobs = [loadBoxProfile(token), loadPublishedQA(true, token, { animate: animateList })]
     if (props.showComposer) jobs.unshift(loadAvatars(token))
     await Promise.all(jobs)
     if (token !== loadRequestToken) return
@@ -536,6 +557,14 @@ watch(publishedQA, () => {
   nextTick(() => scheduleQAScrollMotion())
 })
 
+watch(
+  pageTitle,
+  (title) => {
+    if (!props.embedded && title) document.title = title
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
   await resetAndLoadPublicContent()
   await nextTick()
@@ -556,33 +585,43 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="classic-ask classic-page classic-enter" :class="{ 'is-embedded': embedded, 'has-composer': showComposer }">
-    <header class="ask-head" :class="{ 'is-detail-muted': detailOpen }">
+  <main class="classic-ask classic-page classic-enter" :class="{ 'is-embedded': embedded, 'has-composer': showComposer && !boxMissing }">
+    <section v-if="boxMissing" class="box-missing-state" role="status">
+      <img src="/icon.svg" alt="" />
+      <h1>提问箱不存在</h1>
+    </section>
+
+    <header v-else class="ask-head" :class="{ 'is-detail-muted': detailOpen }">
       <div class="ask-profile">
         <span ref="ownerAvatarRef" class="ask-avatar" :style="avatarStyle(boxProfile.avatar)">
           <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
+          <i v-else class="ri-user-smile-line" aria-hidden="true"></i>
         </span>
         <div>
-          <h1>{{ boxTitle }}</h1>
+          <h1>{{ boxName }}</h1>
           <p v-if="boxDescription">{{ boxDescription }}</p>
         </div>
       </div>
-      <p class="ask-meta">{{ publishedQA.length }} 条公开回复</p>
+      <p class="ask-meta">{{ qaTotal }} 条公开回复</p>
     </header>
 
-    <van-pull-refresh v-model="refreshing" class="ask-refresh" @refresh="handlePullRefresh">
+    <div v-if="!boxMissing" ref="listRef" class="ask-scroll" @scroll="handleScroll">
+      <van-pull-refresh
+        v-model="refreshing"
+        class="ask-refresh"
+        @refresh="handlePullRefresh"
+      >
       <section
-        ref="listRef"
         class="ask-list"
         :class="{ 'is-detail-muted': detailOpen }"
         aria-label="公开回复列表"
-        @scroll="handleScroll"
       >
-        <TransitionGroup name="classic-list" tag="div" class="ask-list__inner">
+        <TransitionGroup :name="qaRefreshing ? '' : 'classic-list'" tag="div" class="ask-list__inner">
           <article
             v-for="qa in publishedQA"
             :key="qa.id"
             class="classic-card classic-press qa-card"
+            :class="{ 'no-enter-motion': qaRefreshing }"
             role="button"
             tabindex="0"
             :style="{ '--card-index': qa.motionIndex }"
@@ -628,9 +667,10 @@ onBeforeUnmount(() => {
           <span>{{ qaLoading ? '加载中' : '继续下滑加载更多' }}</span>
         </div>
       </section>
-    </van-pull-refresh>
+      </van-pull-refresh>
+    </div>
 
-    <Transition v-if="showComposer" name="receipt">
+    <Transition v-if="showComposer && !boxMissing" name="receipt">
       <div v-if="receiptMessage" class="ask-receipt" role="status">
         <i class="ri-check-line" aria-hidden="true"></i>
         <span>{{ receiptMessage }}</span>
@@ -638,7 +678,7 @@ onBeforeUnmount(() => {
     </Transition>
 
     <section
-      v-if="showComposer"
+      v-if="showComposer && !boxMissing"
       class="composer-morph"
       :class="{ open: composerOpen, touched: composerTouched }"
       aria-label="匿名提问输入框"
@@ -785,6 +825,34 @@ onBeforeUnmount(() => {
   animation: none;
 }
 
+.box-missing-state {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  flex: 1;
+  width: min(100%, 680px);
+  min-height: 0;
+  margin: 0 auto;
+  color: var(--classic-muted);
+  text-align: center;
+}
+
+.box-missing-state img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  opacity: 0.82;
+}
+
+.box-missing-state h1 {
+  margin: 0;
+  color: var(--classic-text);
+  font-size: 18px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
 .classic-error-state {
   width: min(100%, 680px);
   margin: 0 auto;
@@ -833,6 +901,12 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.ask-profile > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
 .ask-avatar,
 .mini-avatar,
 .avatar-option {
@@ -848,7 +922,10 @@ onBeforeUnmount(() => {
   height: 52px;
   flex: 0 0 auto;
   border-radius: 8px;
+  border: 1px solid rgba(47, 111, 237, 0.12);
+  background: linear-gradient(180deg, #f8fbff, #eef5ff);
   color: var(--classic-primary);
+  font-size: 24px;
   box-shadow: 0 8px 20px rgba(31, 41, 55, 0.08);
 }
 
@@ -874,7 +951,7 @@ onBeforeUnmount(() => {
 
 .ask-profile p {
   display: -webkit-box;
-  margin: 4px 0 0;
+  margin: 0;
   overflow: hidden;
   color: var(--classic-muted);
   font-size: 13px;
@@ -889,25 +966,27 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.ask-refresh {
+.ask-scroll {
   flex: 1;
   width: min(100%, 680px);
   min-height: 0;
   margin: 0 auto;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ask-refresh {
+  min-height: 100%;
 }
 
 .ask-refresh:deep(.van-pull-refresh__track) {
-  height: 100%;
+  min-height: 100%;
 }
 
 .ask-list {
-  height: 100%;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
   padding: 2px 0 14px;
-  overscroll-behavior: contain;
   transition:
     opacity 220ms ease,
     transform 280ms var(--classic-ease),
@@ -947,6 +1026,10 @@ onBeforeUnmount(() => {
   animation: qa-card-in 340ms cubic-bezier(0.17, 0.9, 0.22, 1.16) backwards;
   animation-delay: calc(min(var(--card-index), 7) * 48ms);
   will-change: transform, opacity;
+}
+
+.qa-card.no-enter-motion {
+  animation: none;
 }
 
 .qa-card:hover {

@@ -142,11 +142,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <ClassicShell title="AskBox" subtitle="管理你的匿名提问箱" icon="ri-user-star-line">
+  <ClassicShell title="AskBox" subtitle="管理你的匿名提问箱">
     <article ref="cardRef" class="classic-card login-card" role="form" aria-label="登录表单">
       <header class="form-head">
         <h1>登录 AskBox</h1>
-        <p>继续处理提问、回复和公开页面。</p>
       </header>
 
       <van-tabs v-model:active="loginMode" shrink animated @click-tab="({ name }) => switchLoginMode(name)">
@@ -231,16 +230,30 @@ onBeforeUnmount(() => {
   line-height: 1.3;
 }
 
-.form-head p {
-  margin: 6px 0 0;
-  color: var(--classic-muted);
-  font-size: 13px;
-}
-
 .form-stack {
   display: grid;
   gap: 12px;
   margin-top: 14px;
+}
+
+.form-stack:deep(.van-field__control) {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.form-stack:deep(.van-field__control:focus) {
+  background: transparent;
+}
+
+.form-stack:deep(.van-field__control::selection) {
+  background: rgba(47, 111, 237, 0.18);
+}
+
+.form-stack:deep(.van-field__control:-webkit-autofill) {
+  -webkit-text-fill-color: var(--classic-text);
+  box-shadow: 0 0 0 1000px #fff inset;
+  transition: background-color 9999s ease-out;
 }
 
 .field-icon {

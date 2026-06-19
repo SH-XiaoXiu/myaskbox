@@ -200,13 +200,27 @@ public class BoxUserServiceImpl implements BoxUserService {
     }
 
     private BoxProfileView toProfileView(BoxUserEntity b) {
+        SysUserEntity user = accountOrNull(b.getUserId());
         return BoxUserAssembler.toProfileView(
-                b, attachmentOrNull(b.getAvatarAttachmentId()), attachmentOrNull(b.getBackgroundAttachmentId()));
+                b, displayNameOrNull(user), accountAvatarOrNull(user), attachmentOrNull(b.getBackgroundAttachmentId()));
     }
 
     private PublicBoxProfileView toPublicProfileView(BoxUserEntity b) {
+        SysUserEntity user = accountOrNull(b.getUserId());
         return BoxUserAssembler.toPublicProfileView(
-                b, attachmentOrNull(b.getAvatarAttachmentId()), attachmentOrNull(b.getBackgroundAttachmentId()));
+                b, displayNameOrNull(user), accountAvatarOrNull(user), attachmentOrNull(b.getBackgroundAttachmentId()));
+    }
+
+    private SysUserEntity accountOrNull(Long userId) {
+        return userId == null ? null : sysUserRepository.findById(userId);
+    }
+
+    private String displayNameOrNull(SysUserEntity user) {
+        return user == null ? null : user.getDisplayName();
+    }
+
+    private AttachmentView accountAvatarOrNull(SysUserEntity user) {
+        return user == null ? null : attachmentOrNull(user.getAvatarAttachmentId());
     }
 
     private AttachmentView attachmentOrNull(Long id) {

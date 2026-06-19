@@ -10,7 +10,8 @@ public final class BoxUserAssembler {
 
     private BoxUserAssembler() {}
 
-    public static BoxProfileView toProfileView(BoxUserEntity entity, AttachmentView avatar, AttachmentView background) {
+    public static BoxProfileView toProfileView(
+            BoxUserEntity entity, String ownerDisplayName, AttachmentView avatar, AttachmentView background) {
         if (entity == null) {
             return null;
         }
@@ -19,6 +20,7 @@ public final class BoxUserAssembler {
                 entity.getUserId(),
                 entity.getSlug(),
                 entity.getDisplayName(),
+                ownerDisplayName,
                 entity.getDescription(),
                 avatar,
                 background,
@@ -27,12 +29,17 @@ public final class BoxUserAssembler {
     }
 
     public static PublicBoxProfileView toPublicProfileView(
-            BoxUserEntity entity, AttachmentView avatar, AttachmentView background) {
+            BoxUserEntity entity, String ownerDisplayName, AttachmentView avatar, AttachmentView background) {
         if (entity == null) {
             return null;
         }
         return new PublicBoxProfileView(
-                entity.getSlug(), entity.getDisplayName(), entity.getDescription(), avatar, background);
+                entity.getSlug(),
+                entity.getDisplayName(),
+                ownerDisplayName,
+                entity.getDescription(),
+                avatar,
+                background);
     }
 
     public static BoxView toAdminView(BoxUserEntity entity, String username, long questionCount) {

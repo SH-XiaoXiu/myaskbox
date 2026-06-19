@@ -22,9 +22,13 @@ public class RegisterMailService {
         sendCode(email, code, minutes, "AskBox 登录验证码", "你正在登录 AskBox。请在页面中输入下面的验证码：");
     }
 
+    public void sendEmailChangeCode(String email, String code, int minutes) {
+        sendCode(email, code, minutes, "AskBox 更换邮箱验证码", "你正在更换 AskBox 登录邮箱。请在页面中输入下面的验证码：");
+    }
+
     private void sendCode(String email, String code, int minutes, String subject, String description) {
         String html = templateService.render(
-                "mail/register-code.html",
+                "mail/code.html",
                 java.util.Map.of(
                         "title", templateService.html(subject),
                         "description", templateService.html(description),

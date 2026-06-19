@@ -47,7 +47,7 @@ public class QuestionRepository {
                 new LambdaQueryWrapper<QuestionEntity>()
                         .eq(QuestionEntity::getBoxUserId, boxUserId)
                         .eq(QuestionEntity::getStatus, QuestionStatus.PENDING)
-                        .orderByAsc(QuestionEntity::getCreatedAt));
+                        .orderByDesc(QuestionEntity::getCreatedAt));
     }
 
     public IPage<QuestionEntity> pageAll(

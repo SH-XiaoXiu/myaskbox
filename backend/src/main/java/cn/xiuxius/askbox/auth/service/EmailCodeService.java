@@ -20,6 +20,7 @@ public class EmailCodeService {
     private static final int MAX_ATTEMPTS = 5;
     private static final String PURPOSE_REGISTER = "register";
     private static final String PURPOSE_LOGIN = "login";
+    private static final String PURPOSE_EMAIL_CHANGE = "email-change";
 
     private final StringRedisTemplate redisTemplate;
     private final AsyncEmailCodeMailService asyncEmailCodeMailService;
@@ -38,6 +39,14 @@ public class EmailCodeService {
 
     public void verifyLoginCode(String email, String code) {
         verify(email, code, PURPOSE_LOGIN);
+    }
+
+    public void sendEmailChangeCode(String email) {
+        send(email, PURPOSE_EMAIL_CHANGE);
+    }
+
+    public void verifyEmailChangeCode(String email, String code) {
+        verify(email, code, PURPOSE_EMAIL_CHANGE);
     }
 
     private void send(String email, String purpose) {

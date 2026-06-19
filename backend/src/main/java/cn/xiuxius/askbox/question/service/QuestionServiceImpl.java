@@ -31,6 +31,8 @@ import cn.xiuxius.askbox.question.repository.QuestionRepository;
 import cn.xiuxius.askbox.question.view.AdminQuestionView;
 import cn.xiuxius.askbox.question.view.PendingQuestionView;
 import cn.xiuxius.askbox.question.view.QuestionView;
+import cn.xiuxius.askbox.system.entity.SysUserEntity;
+import cn.xiuxius.askbox.system.repository.SysUserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +45,7 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>匿名提交问题：通过 slug 定位提问箱，创建 PENDING 状态的问题记录</li>
  *   <li>回答发布：创建独立的 AnswerEntity 记录，更新问题状态为 PUBLISHED</li>
  *   <li>驳回：将问题状态改为 DISMISSED</li>
- *   <li>删除：仅 DISMISSED 状态可物理删除</li>
+ *   <li>删除：箱主可删除自己已发布或已驳回的问题</li>
  * </ul>
  */
 @Service
@@ -56,6 +58,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final BoxUserRepository boxUserRepository;
     private final AnswerService answerService;
     private final AttachmentService attachmentService;
+    private final SysUserRepository sysUserRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -127,10 +130,10 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "published", allEntries = true)
     public void delete(Long boxUserId, Long questionId) {
         QuestionEntity q = getAndValidateOwnership(boxUserId, questionId, ErrorCodes.QUESTION_NOT_FOUND);
-        if (!q.isDismissed()) throw new BizException(ErrorCodes.QUESTION_STATUS_INVALID, "只能删除已驳回的问题");
-        // 如有回答也一并删除
+        if (q.isPending()) throw new BizException(ErrorCodes.QUESTION_STATUS_INVALID, "待回答的问题不能删除");
         answerService.deleteByQuestionIdIfExists(questionId);
         questionRepository.deleteById(questionId);
         log.info("QuestionEntity {} deleted by box {}", questionId, boxUserId);
@@ -206,10 +209,18 @@ public class QuestionServiceImpl implements QuestionService {
     private QuestionView toQuestionView(QuestionEntity q, AnswerEntity answer) {
         AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
         BoxUserEntity box = boxUserRepository.findById(q.getBoxUserId());
-        AttachmentView ownerAvatar = box != null && box.getAvatarAttachmentId() != null
-                ? attachmentService.getById(box.getAvatarAttachmentId())
-                : null;
+        AttachmentView ownerAvatar = accountAvatarOrNull(box);
         return QuestionAssembler.toQuestionView(q, avatar, answer, ownerAvatar);
+    }
+
+    private AttachmentView accountAvatarOrNull(BoxUserEntity box) {
+        if (box == null || box.getUserId() == null) {
+            return null;
+        }
+        SysUserEntity user = sysUserRepository.findById(box.getUserId());
+        return user != null && user.getAvatarAttachmentId() != null
+                ? attachmentService.getById(user.getAvatarAttachmentId())
+                : null;
     }
 
     /** 构建待审问题视图（无回答）。 */

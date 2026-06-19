@@ -8,7 +8,8 @@ import java.util.Set;
  * 由 {@code AccountContextInterceptor} 在每次请求时根据 Sa-Token 会话填充，
  * 供 {@code StpInterfaceImpl} 读取权限和角色列表。
  */
-public record CurrentUser(Long id, String username, String email, Set<String> roles, Set<String> permissions) {
+public record CurrentUser(
+        Long id, String username, String email, String displayName, Set<String> roles, Set<String> permissions) {
 
     public boolean hasRole(String role) {
         return roles != null && roles.contains(role);

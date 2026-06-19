@@ -9,6 +9,7 @@ public record BoxProfileView(
         Long userId,
         String slug,
         String displayName,
+        String ownerDisplayName,
         String description,
         AttachmentView avatar,
         AttachmentView background,

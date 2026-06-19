@@ -21,6 +21,7 @@ public class SysUserEntity implements Serializable {
     private String passwordHash;
     private String displayName;
     private String email;
+    private Long avatarAttachmentId;
     private String status;
     private OffsetDateTime lastLoginAt;
     private String lastLoginIp;
