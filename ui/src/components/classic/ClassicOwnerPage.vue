@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
         <button class="logout-button" type="button" @click="handleLogout">退出登录</button>
       </section>
 
-      <van-tabbar v-model="homeSection" class="owner-tabbar" fixed safe-area-inset-bottom>
+      <van-tabbar v-model="homeSection" class="owner-tabbar" safe-area-inset-bottom>
         <van-tabbar-item v-for="section in homeSections" :key="section.id" :name="section.id">
           <span>{{ section.label }}</span>
           <template #icon>
@@ -853,10 +853,10 @@ onBeforeUnmount(() => {
 
 .home-section {
   position: absolute;
-  inset: 12px 14px calc(62px + env(safe-area-inset-bottom));
+  inset: 12px 14px calc(52px + env(safe-area-inset-bottom));
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 0 10px;
+  padding: 0 0 4px;
   overscroll-behavior: contain;
 }
 
@@ -1170,7 +1170,16 @@ time {
 }
 
 .owner-tabbar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  width: 100%;
   border-top: 1px solid rgba(226, 232, 240, 0.86);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -8px 24px rgba(31, 41, 55, 0.04);
+  transform: none;
 }
 
 .owner-tabbar i {

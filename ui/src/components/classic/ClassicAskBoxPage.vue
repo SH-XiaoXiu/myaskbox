@@ -63,12 +63,14 @@ const detailOriginStyle = ref({})
 
 let receiptTimer = 0
 let avatarSnapTimer = 0
+let avatarProgrammaticTimer = 0
 let flyingFrame = 0
 let qaScrollFrame = 0
 let qaSettleFrame = 0
 let detailFocusTimer = 0
 let activeFlyer = null
 let loadRequestToken = 0
+let avatarProgrammaticScroll = false
 const qaMotionState = {
   lastScrollTop: 0,
   lastTime: 0,
@@ -82,6 +84,7 @@ const pageTitle = computed(() => {
   return ownerName.value ? `${ownerName.value}的提问箱` : boxName.value
 })
 const boxDescription = computed(() => boxProfile.value.description?.trim() || '')
+const backgroundSrc = computed(() => assetSrc(boxProfile.value.background))
 const canSend = computed(() => content.value.trim().length > 0 && !sending.value && selectedAvatar.value)
 const avatarLoopOptions = computed(() => {
   if (!avatarList.value.length) return []
@@ -149,13 +152,26 @@ async function loadAvatars(token = loadRequestToken) {
   }
 }
 
+function markAvatarProgrammaticScroll(duration = 80) {
+  window.clearTimeout(avatarProgrammaticTimer)
+  avatarProgrammaticScroll = true
+  avatarProgrammaticTimer = window.setTimeout(() => {
+    avatarProgrammaticScroll = false
+  }, duration)
+}
+
 function centerAvatar(index, behavior = 'smooth', targetEl = null) {
+  const picker = avatarPickerRef.value
   const target =
     targetEl ||
-    avatarPickerRef.value?.querySelector(
+    picker?.querySelector(
       `[data-avatar-cycle="1"][data-avatar-index="${index}"]`,
     )
-  target?.scrollIntoView({ behavior, block: 'nearest', inline: 'center' })
+  if (!picker || !target) return
+
+  const nextLeft = target.offsetLeft - (picker.clientWidth - target.clientWidth) / 2
+  markAvatarProgrammaticScroll(behavior === 'smooth' ? 340 : 80)
+  picker.scrollTo({ left: nextLeft, behavior })
 }
 
 function getAvatarCycleWidth() {
@@ -175,6 +191,7 @@ function recenterAvatarLoop() {
   while (nextScrollLeft > cycleWidth * 1.5) nextScrollLeft -= cycleWidth
   if (Math.abs(nextScrollLeft - picker.scrollLeft) < 1) return
   const previousBehavior = picker.style.scrollBehavior
+  markAvatarProgrammaticScroll(80)
   picker.style.scrollBehavior = 'auto'
   picker.scrollLeft = nextScrollLeft
   picker.style.scrollBehavior = previousBehavior
@@ -204,12 +221,13 @@ function updateSelectedAvatarFromCenter() {
 }
 
 function handleAvatarScroll() {
+  if (avatarProgrammaticScroll) return
   window.clearTimeout(avatarSnapTimer)
   avatarSnapTimer = window.setTimeout(() => {
     recenterAvatarLoop()
     updateSelectedAvatarFromCenter()
-    centerAvatar(selectedAvatarIndex.value, 'smooth')
-  }, 110)
+    centerAvatar(selectedAvatarIndex.value, 'auto')
+  }, 150)
 }
 
 function handleAvatarWheel(event) {
@@ -580,12 +598,31 @@ onBeforeUnmount(() => {
   activeFlyer?.remove()
   window.clearTimeout(receiptTimer)
   window.clearTimeout(avatarSnapTimer)
+  window.clearTimeout(avatarProgrammaticTimer)
   window.clearTimeout(detailFocusTimer)
 })
 </script>
 
 <template>
-  <main class="classic-ask classic-page classic-enter" :class="{ 'is-embedded': embedded, 'has-composer': showComposer && !boxMissing }">
+  <main
+    class="classic-ask classic-page classic-enter"
+    :class="{
+      'is-embedded': embedded,
+      'has-composer': showComposer && !boxMissing,
+      'has-background': backgroundSrc && !embedded,
+    }"
+  >
+    <img
+      v-if="backgroundSrc && !embedded"
+      class="classic-page-bg"
+      :src="backgroundSrc"
+      alt=""
+      decoding="async"
+      fetchpriority="high"
+      loading="eager"
+      draggable="false"
+    />
+
     <section v-if="boxMissing" class="box-missing-state" role="status">
       <img src="/icon.svg" alt="" />
       <h1>提问箱不存在</h1>
@@ -805,27 +842,52 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .classic-ask {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
   padding: max(18px, env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+  isolation: isolate;
 }
 
-.classic-ask.has-composer {
-  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+.classic-ask.has-background {
+  background: transparent;
 }
 
 .classic-ask.is-embedded {
   height: 100%;
   min-height: 0;
-  padding: 0 0 10px;
+  padding: 0;
   background: transparent;
   animation: none;
 }
 
+.classic-page-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
+.classic-ask.has-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.2), rgba(248, 250, 252, 0.46)),
+    rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
 .box-missing-state {
+  position: relative;
   display: grid;
   place-items: center;
   align-content: center;
@@ -874,6 +936,11 @@ onBeforeUnmount(() => {
 }
 
 .ask-head {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
   flex: 0 0 auto;
   width: min(100%, 680px);
   margin: 0 auto 12px;
@@ -899,6 +966,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .ask-profile > div {
@@ -943,10 +1011,13 @@ onBeforeUnmount(() => {
 
 .ask-profile h1 {
   margin: 0;
+  overflow: hidden;
   font-size: 21px;
   line-height: 1.22;
   font-weight: 780;
   letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ask-profile p {
@@ -961,23 +1032,35 @@ onBeforeUnmount(() => {
 }
 
 .ask-meta {
-  margin: 8px 0 0;
+  flex: 0 0 auto;
+  margin: 0 0 3px;
   color: var(--classic-muted);
   font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .ask-scroll {
+  position: relative;
   flex: 1;
-  width: min(100%, 680px);
+  width: 100%;
   min-height: 0;
   margin: 0 auto;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ask-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .ask-refresh {
+  width: min(100%, 680px);
   min-height: 100%;
+  margin: 0 auto;
 }
 
 .ask-refresh:deep(.van-pull-refresh__track) {
@@ -986,7 +1069,7 @@ onBeforeUnmount(() => {
 
 .ask-list {
   min-height: 0;
-  padding: 2px 0 14px;
+  padding: 2px 0 calc(92px + env(safe-area-inset-bottom));
   transition:
     opacity 220ms ease,
     transform 280ms var(--classic-ease),
@@ -1028,6 +1111,14 @@ onBeforeUnmount(() => {
   will-change: transform, opacity;
 }
 
+.classic-ask.has-background .qa-card {
+  border-color: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 calc(8px * var(--scroll-shadow)) calc(22px * var(--scroll-shadow)) rgba(15, 23, 42, calc(0.06 * var(--scroll-shadow)));
+}
+
 .qa-card.no-enter-motion {
   animation: none;
 }
@@ -1036,6 +1127,12 @@ onBeforeUnmount(() => {
   border-color: #d8d8d6;
   box-shadow: 0 3px 16px rgba(15, 23, 42, 0.04);
   transform: translate3d(0, calc(var(--scroll-y) - 1px), 0) scale(var(--scroll-scale));
+}
+
+.classic-ask.has-background .qa-card:hover {
+  border-color: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 3px 16px rgba(15, 23, 42, 0.08);
 }
 
 .qa-card:active {
@@ -1545,7 +1642,6 @@ time,
   inset: 0;
   border: 0;
   background: rgba(15, 23, 42, 0.26);
-  backdrop-filter: blur(7px);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -1591,15 +1687,12 @@ time,
 
 .detail-layer-enter-active .detail-scrim,
 .detail-layer-leave-active .detail-scrim {
-  transition:
-    opacity 260ms ease,
-    backdrop-filter 260ms ease;
+  transition: opacity 260ms ease;
 }
 
 .detail-layer-enter-from .detail-scrim,
 .detail-layer-leave-to .detail-scrim {
   opacity: 0;
-  backdrop-filter: blur(0);
 }
 
 .detail-layer-enter-active .detail-panel {

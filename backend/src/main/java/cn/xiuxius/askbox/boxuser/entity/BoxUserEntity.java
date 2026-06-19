@@ -3,6 +3,7 @@ package cn.xiuxius.askbox.boxuser.entity;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -22,7 +23,11 @@ public class BoxUserEntity implements Serializable {
     private String slug;
     private String displayName;
     private String description;
+
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long avatarAttachmentId;
+
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Long backgroundAttachmentId;
 
     @TableField("email_notify_enabled")
