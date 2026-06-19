@@ -10,7 +10,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import cn.xiuxius.askbox.attachment.enums.AttachmentStorageType;
 import cn.xiuxius.askbox.attachment.enums.AttachmentUsageType;
@@ -32,7 +31,6 @@ public class Base64AttachmentMigrationRunner implements ApplicationRunner {
     private final ConfigurableApplicationContext applicationContext;
 
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
         boolean dryRun = args.containsOption("dry-run");
         List<LegacyAttachment> rows = jdbcTemplate.query(
