@@ -18,8 +18,8 @@ public class AttachmentSaveRequest {
     @NotNull(message = "附件用途不能为空")
     private AttachmentUsageType usageType;
 
-    @NotBlank(message = "附件内容不能为空")
-    private String contentBase64;
+    @NotBlank(message = "对象 key 不能为空")
+    private String objectKey;
 
     @Size(max = 50, message = "背景色最多50个字符")
     private String bg;

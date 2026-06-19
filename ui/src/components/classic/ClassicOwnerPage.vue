@@ -2,8 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { uploadAttachmentObject } from '@/api/attachments'
 import { useAuthStore } from '@/stores/auth'
 import { formatTime } from '@/utils'
+import { assetSrc } from '@/utils/assets'
 import ClassicAskBoxPage from '@/components/classic/ClassicAskBoxPage.vue'
 import {
   getBoxProfile,
@@ -114,7 +116,7 @@ async function loadPending(reset = false) {
     const r = await getPendingQuestions(page, 20)
     const items = r.records.map((q) => ({
       id: q.id,
-      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      profile: q.avatar,
       question: q.question,
       ts: q.ts,
       time: formatTime(q.ts),
@@ -138,7 +140,7 @@ async function loadHistory(status, reset = false) {
     const r = await getHistoryQuestions(status, page, 20)
     const items = r.records.map((q) => ({
       id: q.id,
-      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
       question: q.question,
       answer: q.answer,
@@ -296,29 +298,26 @@ async function saveProfile() {
   }
 }
 
-function readFileAsDataUrl(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.readAsDataURL(file)
-  })
-}
-
 async function handleBackgroundFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
   if (!file) return
+  const preview = URL.createObjectURL(file)
+  boxProfile.value = { ...boxProfile.value, background: preview }
   try {
-    await handleUpdateProfile(profilePayload({ backgroundBase64: await readFileAsDataUrl(file) }))
+    const objectKey = await uploadAttachmentObject(file, 'BOX_BACKGROUND')
+    await handleUpdateProfile(profilePayload({ backgroundObjectKey: objectKey }))
     showToast('背景已更新')
   } catch (error) {
     showToast(error?.message || '背景上传失败')
+  } finally {
+    URL.revokeObjectURL(preview)
   }
 }
 
 async function clearBackground() {
   try {
-    await handleUpdateProfile(profilePayload({ backgroundBase64: '' }))
+    await handleUpdateProfile(profilePayload({ backgroundObjectKey: '' }))
     showToast('已使用默认背景')
   } catch (error) {
     showToast(error?.message || '清空失败')
@@ -351,11 +350,16 @@ async function handleAvatarFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
   if (!file) return
+  const preview = URL.createObjectURL(file)
+  boxProfile.value = { ...boxProfile.value, avatar: preview }
   try {
-    await handleUpdateProfile(profilePayload({ avatarBase64: await readFileAsDataUrl(file) }))
+    const objectKey = await uploadAttachmentObject(file, 'BOX_OWNER_AVATAR')
+    await handleUpdateProfile(profilePayload({ avatarObjectKey: objectKey }))
     showToast('头像已更新')
   } catch (error) {
     showToast(error?.message || '头像上传失败')
+  } finally {
+    URL.revokeObjectURL(preview)
   }
 }
 
@@ -375,7 +379,7 @@ async function handleLogout() {
 
 function avatarSrc(avatar) {
   if (!avatar) return ''
-  return typeof avatar === 'string' ? avatar : avatar.contentBase64 || ''
+  return assetSrc(avatar)
 }
 
 function avatarStyle(avatar, fallbackBg = '#eff6ff') {

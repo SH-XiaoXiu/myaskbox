@@ -26,6 +26,7 @@ val saTokenVersion = "1.41.0"
 val palantirJavaFormatVersion = "2.50.0"
 val bucket4jVersion = "8.19.0"
 val hutoolVersion = "5.8.46"
+val minioVersion = "9.0.3"
 
 dependencies {
     // Web
@@ -63,6 +64,7 @@ dependencies {
 
     // Utilities
     implementation("cn.hutool:hutool-all:$hutoolVersion")
+    implementation("io.minio:minio:$minioVersion")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
 

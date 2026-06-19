@@ -30,3 +30,17 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: askbox-minio
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-askbox}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-askbox-secret}
+    volumes:
+      - ./data/minio:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped

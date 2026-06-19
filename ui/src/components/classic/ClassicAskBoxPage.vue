@@ -9,6 +9,7 @@ import {
   submitQuestion,
 } from '@/api/public'
 import { formatTime } from '@/utils'
+import { assetSrc } from '@/utils/assets'
 
 const route = useRoute()
 const props = defineProps({
@@ -77,12 +78,12 @@ const selectedAvatarIndex = computed(() => {
 })
 
 function toAvatarOption(a) {
-  return { id: a.id, name: a.name, contentBase64: a.contentBase64, bg: a.bg }
+  return { ...a }
 }
 
 function avatarSrc(avatar) {
   if (!avatar) return ''
-  return typeof avatar === 'string' ? avatar : avatar.contentBase64 || ''
+  return assetSrc(avatar)
 }
 
 function avatarStyle(avatar, fallbackBg = '#eff6ff') {
@@ -254,7 +255,7 @@ async function loadPublishedQA(reset = false) {
     const result = await getPublishedQA(slug.value, page, 10)
     const items = result.records.map((q) => ({
       id: q.id,
-      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
       question: q.question,
       answer: q.answer,

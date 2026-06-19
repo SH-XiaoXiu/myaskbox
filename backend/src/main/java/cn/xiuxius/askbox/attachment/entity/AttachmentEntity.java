@@ -23,7 +23,7 @@ public class AttachmentEntity implements Serializable {
     private String name;
     private AttachmentUsageType usageType;
     private AttachmentStorageType storageType;
-    private String contentBase64;
+    private String objectKey;
     private String mimeType;
     private Long sizeBytes;
     private String sha256;

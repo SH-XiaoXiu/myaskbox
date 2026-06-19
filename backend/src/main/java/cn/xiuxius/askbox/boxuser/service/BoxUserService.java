@@ -32,8 +32,8 @@ public interface BoxUserService {
             String slug,
             String displayName,
             String description,
-            String avatarBase64,
-            String backgroundBase64,
+            String avatarObjectKey,
+            String backgroundObjectKey,
             Boolean emailNotifyEnabled);
 
     BoxProfileView updateBoxById(
@@ -41,8 +41,8 @@ public interface BoxUserService {
             String slug,
             String displayName,
             String description,
-            String avatarBase64,
-            String backgroundBase64,
+            String avatarObjectKey,
+            String backgroundObjectKey,
             Boolean emailNotifyEnabled);
 
     BoxUserEntity createBox(Long userId, String slug, String displayName, String description);

@@ -48,7 +48,7 @@ public class AdminAttachmentController {
         return R.ok(attachmentService.create(
                 request.getName(),
                 request.getUsageType(),
-                request.getContentBase64(),
+                request.getObjectKey(),
                 request.getBg(),
                 request.getSortOrder()));
     }
@@ -61,7 +61,7 @@ public class AdminAttachmentController {
                 id,
                 request.getName(),
                 request.getUsageType(),
-                request.getContentBase64(),
+                request.getObjectKey(),
                 request.getBg(),
                 request.getSortOrder(),
                 request.getIsActive()));

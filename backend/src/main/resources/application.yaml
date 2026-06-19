@@ -76,3 +76,13 @@ askbox.rate-limit:
   custom.capacity: 60
   custom.refill-tokens: 60
   custom.time-window-seconds: 60
+
+askbox.object-storage:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:askbox}
+  secret-key: ${MINIO_SECRET_KEY:askbox-secret}
+  bucket: ${MINIO_BUCKET:askbox-assets}
+  region: ${MINIO_REGION:us-east-1}
+  access-mode: ${MINIO_ACCESS_MODE:REDIRECT}
+  presign-ttl-seconds: ${MINIO_PRESIGN_TTL_SECONDS:600}

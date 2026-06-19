@@ -114,12 +114,12 @@ public class BoxUserServiceImpl implements BoxUserService {
             String slug,
             String displayName,
             String description,
-            String avatarBase64,
-            String backgroundBase64,
+            String avatarObjectKey,
+            String backgroundObjectKey,
             Boolean emailNotifyEnabled) {
         BoxUserEntity b = repo.findByUserId(userId);
         if (b == null) throw new BizException(ErrorCodes.BOX_NOT_FOUND);
-        updateAttachments(b, avatarBase64, backgroundBase64);
+        updateAttachments(b, avatarObjectKey, backgroundObjectKey);
         return updateBoxEntity(b, slug, displayName, description, emailNotifyEnabled);
     }
 
@@ -130,11 +130,11 @@ public class BoxUserServiceImpl implements BoxUserService {
             String slug,
             String displayName,
             String description,
-            String avatarBase64,
-            String backgroundBase64,
+            String avatarObjectKey,
+            String backgroundObjectKey,
             Boolean emailNotifyEnabled) {
         BoxUserEntity b = getById(id);
-        updateAttachments(b, avatarBase64, backgroundBase64);
+        updateAttachments(b, avatarObjectKey, backgroundObjectKey);
         return updateBoxEntity(b, slug, displayName, description, emailNotifyEnabled);
     }
 
@@ -170,28 +170,28 @@ public class BoxUserServiceImpl implements BoxUserService {
         return b;
     }
 
-    private void updateAttachments(BoxUserEntity b, String avatarBase64, String backgroundBase64) {
-        if (avatarBase64 != null) {
-            if (avatarBase64.isBlank()) {
+    private void updateAttachments(BoxUserEntity b, String avatarObjectKey, String backgroundObjectKey) {
+        if (avatarObjectKey != null) {
+            if (avatarObjectKey.isBlank()) {
                 b.setAvatarAttachmentId(null);
             } else {
                 AttachmentView avatar = attachmentService.createOwnedImage(
                         "box-avatar-" + b.getId(),
                         AttachmentUsageType.BOX_OWNER_AVATAR,
-                        avatarBase64,
+                        avatarObjectKey,
                         "BOX_USER",
                         b.getId());
                 b.setAvatarAttachmentId(avatar.id());
             }
         }
-        if (backgroundBase64 != null) {
-            if (backgroundBase64.isBlank()) {
+        if (backgroundObjectKey != null) {
+            if (backgroundObjectKey.isBlank()) {
                 b.setBackgroundAttachmentId(null);
             } else {
                 AttachmentView background = attachmentService.createOwnedImage(
                         "box-background-" + b.getId(),
                         AttachmentUsageType.BOX_BACKGROUND,
-                        backgroundBase64,
+                        backgroundObjectKey,
                         "BOX_USER",
                         b.getId());
                 b.setBackgroundAttachmentId(background.id());

@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { showDialog, showSuccessToast } from 'vant'
 import { listAttachments, createAttachment, updateAttachment, deleteAttachment } from '@/api/admin'
+import { uploadAttachmentObject } from '@/api/attachments'
+import { assetSrc } from '@/utils/assets'
 
 const loading = ref(true)
 const error = ref('')
@@ -60,7 +62,7 @@ const showUsagePicker = ref(false)
 const formTitle = ref('')
 const isEditing = ref(false)
 const editingAttachment = ref(null)
-const form = ref({ name: '', usageType: 'ANONYMOUS_AVATAR', bg: '#6366f1', sortOrder: 0, contentBase64: '', isActive: true })
+const form = ref({ name: '', usageType: 'ANONYMOUS_AVATAR', bg: '#6366f1', sortOrder: 0, objectKey: '', previewUrl: '', file: null, isActive: true })
 
 function usageText(value) {
   return usageOptions.find((option) => option.value === value)?.text || ''
@@ -76,7 +78,7 @@ function openCreate() {
   isEditing.value = false
   editingAttachment.value = null
   formTitle.value = '新增附件'
-  form.value = { name: '', usageType: usageFilter.value, bg: '#6366f1', sortOrder: 0, contentBase64: '', isActive: true }
+  form.value = { name: '', usageType: usageFilter.value, bg: '#6366f1', sortOrder: 0, objectKey: '', previewUrl: '', file: null, isActive: true }
   showFormSheet.value = true
 }
 
@@ -89,7 +91,9 @@ function openEdit(attachment) {
     usageType: attachment.usageType,
     bg: attachment.bg || '#6366f1',
     sortOrder: attachment.sortOrder || 0,
-    contentBase64: attachment.contentBase64 || '',
+    objectKey: attachment.objectKey || '',
+    previewUrl: assetSrc(attachment),
+    file: null,
     isActive: attachment.isActive !== false,
   }
   showFormSheet.value = true
@@ -99,12 +103,11 @@ function handleFileChange(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
   if (!file) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    form.value.contentBase64 = String(reader.result || '')
-    if (!form.value.name) form.value.name = file.name.replace(/\.[^.]+$/, '')
-  }
-  reader.readAsDataURL(file)
+  if (form.value.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(form.value.previewUrl)
+  form.value.file = file
+  form.value.objectKey = ''
+  form.value.previewUrl = URL.createObjectURL(file)
+  if (!form.value.name) form.value.name = file.name.replace(/\.[^.]+$/, '')
 }
 
 function confirmUsage({ selectedOptions }) {
@@ -114,12 +117,15 @@ function confirmUsage({ selectedOptions }) {
 }
 
 async function submitForm() {
+  const objectKey = form.value.file
+    ? await uploadAttachmentObject(form.value.file, form.value.usageType)
+    : form.value.objectKey
   const payload = {
     name: form.value.name,
     usageType: form.value.usageType,
     bg: form.value.bg,
     sortOrder: form.value.sortOrder,
-    contentBase64: form.value.contentBase64,
+    objectKey,
     isActive: form.value.isActive,
   }
   try {
@@ -167,7 +173,7 @@ function formatSize(size) {
         <van-cell v-for="attachment in attachments" :key="attachment.id" is-link @click="openEdit(attachment)">
           <template #icon>
             <div class="attachment-thumb" :style="{ background: attachment.bg || '#f2f3f5' }">
-              <img :src="attachment.contentBase64" alt="" />
+              <img :src="assetSrc(attachment)" alt="" />
             </div>
           </template>
           <template #title>
@@ -235,14 +241,14 @@ function formatSize(size) {
           <template #input>
             <label class="styled-file-button">
               <i class="ri-image-add-line" aria-hidden="true"></i>
-              <span>{{ form.contentBase64 ? '重新选择图片' : '选择图片' }}</span>
+              <span>{{ form.previewUrl || form.objectKey ? '重新选择图片' : '选择图片' }}</span>
               <input type="file" :accept="imageAccept()" @change="handleFileChange" />
             </label>
           </template>
         </van-field>
-        <div v-if="form.contentBase64" class="preview-row">
-          <img :src="form.contentBase64" alt="" />
-          <span>{{ form.contentBase64.slice(0, 32) }}...</span>
+        <div v-if="form.previewUrl || form.objectKey" class="preview-row">
+          <img :src="form.previewUrl || assetSrc(form.objectKey)" alt="" />
+          <span>{{ form.file?.name || form.objectKey }}</span>
         </div>
         <van-cell title="启用">
           <template #right-icon>

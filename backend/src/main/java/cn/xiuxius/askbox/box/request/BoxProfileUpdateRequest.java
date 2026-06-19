@@ -20,9 +20,9 @@ public class BoxProfileUpdateRequest {
     @Size(max = 500, message = "简介最多500个字符")
     private String description;
 
-    private String avatarBase64;
+    private String avatarObjectKey;
 
-    private String backgroundBase64;
+    private String backgroundObjectKey;
 
     private Boolean emailNotifyEnabled;
 }

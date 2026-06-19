@@ -63,8 +63,8 @@ public class BoxController {
                 request.getSlug(),
                 request.getDisplayName(),
                 request.getDescription() == null ? "" : request.getDescription(),
-                request.getAvatarBase64(),
-                request.getBackgroundBase64(),
+                request.getAvatarObjectKey(),
+                request.getBackgroundObjectKey(),
                 request.getEmailNotifyEnabled());
         return R.ok(updated);
     }

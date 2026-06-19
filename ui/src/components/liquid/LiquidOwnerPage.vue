@@ -4,8 +4,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRouter } from "vue-router";
 import { showSuccessToast, showToast } from "vant";
 import { pageBackground } from "@/assets/background";
+import { uploadAttachmentObject } from "@/api/attachments";
 import { useAuthStore } from "@/stores/auth";
 import { formatTime } from "@/utils";
+import { assetSrc } from "@/utils/assets";
 import {
   getBoxProfile, updateBoxProfile,
   getBoxStats,
@@ -56,7 +58,7 @@ async function loadPending(reset = false) {
     const r = await getPendingQuestions(page, 20);
     const items = r.records.map(q => ({
       id: q.id,
-      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      profile: q.avatar,
       question: q.question,
       ts: q.ts,
       time: formatTime(q.ts),
@@ -80,7 +82,7 @@ async function loadHistory(status, reset = false) {
     const r = await getHistoryQuestions(status, page, 20);
     const items = r.records.map(q => ({
       id: q.id,
-      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
       question: q.question,
       answer: q.answer,
@@ -379,24 +381,24 @@ async function saveProfile() {
   nextTick(() => scheduleGlassRefresh(rootRef.value));
 }
 
-function handleBackgroundFile(event) {
+async function handleBackgroundFile(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async () => {
-    try {
-      await handleUpdateProfile(profilePayload({ backgroundBase64: String(reader.result || "") }));
-      showSuccessToast("背景已更新");
-    } catch {}
-    nextTick(() => scheduleGlassRefresh(rootRef.value));
-  };
-  reader.readAsDataURL(file);
+  const preview = URL.createObjectURL(file);
+  boxProfile.value = { ...boxProfile.value, background: preview };
+  try {
+    const objectKey = await uploadAttachmentObject(file, "BOX_BACKGROUND");
+    await handleUpdateProfile(profilePayload({ backgroundObjectKey: objectKey }));
+    showSuccessToast("背景已更新");
+  } catch {}
+  URL.revokeObjectURL(preview);
+  nextTick(() => scheduleGlassRefresh(rootRef.value));
 }
 
 async function clearBackground() {
   try {
-    await handleUpdateProfile(profilePayload({ backgroundBase64: "" }));
+    await handleUpdateProfile(profilePayload({ backgroundObjectKey: "" }));
     showSuccessToast("已使用默认背景");
   } catch {}
   nextTick(() => scheduleGlassRefresh(rootRef.value));
@@ -410,16 +412,16 @@ function handleAvatarFile(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async () => {
-    try {
-      await handleUpdateProfile(profilePayload({ avatarBase64: String(reader.result || "") }));
-      showSuccessToast("头像已更新");
-    } catch {}
-    nextTick(() => scheduleGlassRefresh(rootRef.value));
-  };
-  reader.readAsDataURL(file);
+  const preview = URL.createObjectURL(file);
+  boxProfile.value = { ...boxProfile.value, avatar: preview };
+  uploadAttachmentObject(file, "BOX_OWNER_AVATAR")
+    .then((objectKey) => handleUpdateProfile(profilePayload({ avatarObjectKey: objectKey })))
+    .then(() => showSuccessToast("头像已更新"))
+    .catch(() => {})
+    .finally(() => {
+      URL.revokeObjectURL(preview);
+      nextTick(() => scheduleGlassRefresh(rootRef.value));
+    });
 }
 
 async function copyPublicUrl() {
@@ -438,7 +440,7 @@ function questionTime(question) {
 
 function avatarSrc(avatar) {
   if (!avatar) return "";
-  return typeof avatar === "string" ? avatar : avatar.contentBase64 || "";
+  return assetSrc(avatar);
 }
 
 function avatarStyle(avatar, fallbackBg = "rgba(255,255,255,.16)") {
@@ -493,7 +495,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="owner-bg"
-      :src="boxProfile.background?.contentBase64 || pageBackground.src"
+      :src="assetSrc(boxProfile.background) || pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"

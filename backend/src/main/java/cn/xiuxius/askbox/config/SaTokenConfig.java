@@ -23,6 +23,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             "/api/boxes/**",
             "/api/reply-tokens/**",
             "/api/attachments/anonymous-avatars",
+            "/api/assets/**",
             "/api/health",
             "/api/admin/login",
             "/api/auth/login",

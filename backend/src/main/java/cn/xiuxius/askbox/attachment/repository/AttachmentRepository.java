@@ -38,6 +38,11 @@ public class AttachmentRepository {
         return mapper.selectById(id);
     }
 
+    public AttachmentEntity findByObjectKey(String objectKey) {
+        return mapper.selectOne(
+                new LambdaQueryWrapper<AttachmentEntity>().eq(AttachmentEntity::getObjectKey, objectKey));
+    }
+
     public void insert(AttachmentEntity entity) {
         mapper.insert(entity);
     }

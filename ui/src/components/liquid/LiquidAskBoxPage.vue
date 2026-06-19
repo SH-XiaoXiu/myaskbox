@@ -19,6 +19,7 @@ import {
 } from "@/api/public";
 import { pageBackground } from "@/assets/background";
 import { formatTime } from "@/utils";
+import { assetSrc } from "@/utils/assets";
 
 const route = useRoute();
 const slug = computed(() => route.params.slug || "xiaoxiu");
@@ -34,7 +35,7 @@ const qaHasMore = ref(false);
 
 // 适配器：将后端 Avatar 转为组件内使用的格式
 function toAvatarOption(a) {
-  return { id: a.id, name: a.name, contentBase64: a.contentBase64, bg: a.bg };
+  return { ...a };
 }
 
 async function loadAvatars() {
@@ -57,7 +58,7 @@ async function loadPublishedQA(reset = false) {
     const result = await getPublishedQA(slug.value, page, 10);
     const items = result.records.map(q => ({
       id: q.id,
-      profile: { name: q.avatar?.name, contentBase64: q.avatar?.contentBase64, bg: q.avatar?.bg },
+      profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
       question: q.question,
       answer: q.answer,
@@ -743,7 +744,7 @@ function resetTextareaScroll() {
 
 function avatarSrc(avatar) {
   if (!avatar) return "";
-  return typeof avatar === "string" ? avatar : avatar.contentBase64 || "";
+  return assetSrc(avatar);
 }
 
 function avatarImageStyle(avatar, fallbackBg = "rgba(255, 255, 255, 0.16)") {
@@ -1048,7 +1049,7 @@ onBeforeUnmount(() => {
     <img
       ref="bgRef"
       class="page-bg"
-      :src="boxProfile.background?.contentBase64 || pageBackground.src"
+      :src="assetSrc(boxProfile.background) || pageBackground.src"
       alt=""
       decoding="async"
       fetchpriority="high"
