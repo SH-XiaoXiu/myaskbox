@@ -5,7 +5,7 @@ import { useRouter } from "vue-router";
 import { showSuccessToast, showToast } from "vant";
 import { pageBackground } from "@/assets/background";
 import { uploadAttachmentObject } from "@/api/attachments";
-import { useAuthStore } from "@/stores/auth";
+import { useLogoutConfirm } from "@/composables/useLogoutConfirm";
 import { formatTime } from "@/utils";
 import { assetSrc } from "@/utils/assets";
 import {
@@ -13,15 +13,17 @@ import {
   getBoxStats,
   getPendingQuestions, getHistoryQuestions,
   answerQuestion, dismissQuestion, deleteQuestion,
+  getTopics, createTopic, closeTopic,
 } from "@/api/owner";
 
 const router = useRouter();
-const auth = useAuthStore();
+const { confirmLogout } = useLogoutConfirm();
 
 const boxProfile = ref({ displayName: "", slug: "", description: "", avatar: null, background: null });
 const pendingQuestions = ref([]);
 const publishedQA = ref([]);
 const dismissedQuestions = ref([]);
+const topics = ref([]);
 const loading = ref(false);
 const stats = ref({ pendingCount: 0, publishedCount: 0, dismissedCount: 0, todayReceivedCount: 0 });
 const pageState = ref({
@@ -59,6 +61,7 @@ async function loadPending(reset = false) {
     const items = r.records.map(q => ({
       id: q.id,
       profile: q.avatar,
+      topic: q.topic,
       question: q.question,
       ts: q.ts,
       time: formatTime(q.ts),
@@ -84,6 +87,7 @@ async function loadHistory(status, reset = false) {
       id: q.id,
       profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
+      topic: q.topic,
       question: q.question,
       answer: q.answer,
       ts: q.ts,
@@ -127,6 +131,10 @@ async function handleUpdateProfile(data) {
   };
 }
 
+async function loadTopics() {
+  topics.value = await getTopics();
+}
+
 const rootRef = ref(null);
 const bgRef = ref(null);
 const drawerRef = ref(null);
@@ -142,6 +150,12 @@ const profileDraft = reactive({
   slug: boxProfile.value.slug,
   description: boxProfile.value.description,
 });
+const topicDraft = reactive({
+  title: "",
+  description: "",
+  expiresAt: "",
+});
+const topicSaving = ref(false);
 
 let liquidGlass = null;
 let initToken = 0;
@@ -152,6 +166,7 @@ const tabs = [
   { id: "pending", label: "待回答", icon: "ri-inbox-2-line" },
   { id: "published", label: "已发布", icon: "ri-chat-check-line" },
   { id: "dismissed", label: "已驳回", icon: "ri-archive-line" },
+  { id: "topics", label: "话题", icon: "ri-price-tag-3-line" },
   { id: "settings", label: "设置", icon: "ri-settings-3-line" },
 ];
 
@@ -196,6 +211,7 @@ const displayedQuestions = computed(() => {
   return [];
 });
 const activeTabMeta = computed(() => tabs.find((tab) => tab.id === activeTab.value));
+const activeTopics = computed(() => topics.value.filter(topic => topic.available));
 const selectedIsPending = computed(
   () => activeTab.value === "pending" && selectedQuestion.value,
 );
@@ -231,9 +247,8 @@ function handleResize() {
   scheduleGlassRefresh(rootRef.value);
 }
 
-async function handleLogout() {
-  await auth.logout();
-  router.replace("/login");
+function handleLogout() {
+  confirmLogout();
 }
 
 async function waitForBackgroundImage() {
@@ -434,6 +449,61 @@ async function copyPublicUrl() {
   }
 }
 
+function topicUrl(topic) {
+  return `${window.location.origin}/box/${boxProfile.value.slug}?topic=${topic.code}`;
+}
+
+async function copyTopicUrl(topic) {
+  const url = topicUrl(topic);
+  try {
+    await navigator.clipboard?.writeText(url);
+    showSuccessToast("话题链接已复制");
+  } catch {
+    showToast(url);
+  }
+}
+
+function topicStatusText(topic) {
+  if (topic.status === "EXPIRED") return "已到期";
+  if (topic.status === "CLOSED") return "已关闭";
+  return "进行中";
+}
+
+function topicExpiresText(topic) {
+  if (!topic.expiresAt) return "未设置到期";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(topic.expiresAt));
+}
+
+async function saveTopic() {
+  if (!topicDraft.title.trim() || topicSaving.value) return;
+  topicSaving.value = true;
+  try {
+    await createTopic({
+      title: topicDraft.title.trim(),
+      description: topicDraft.description.trim(),
+      expiresAt: topicDraft.expiresAt ? new Date(topicDraft.expiresAt).toISOString() : null,
+    });
+    topicDraft.title = "";
+    topicDraft.description = "";
+    topicDraft.expiresAt = "";
+    await loadTopics();
+    showSuccessToast("话题已创建");
+  } finally {
+    topicSaving.value = false;
+  }
+}
+
+async function closeOwnerTopic(topic) {
+  await closeTopic(topic.id);
+  await loadTopics();
+  showSuccessToast("话题已关闭");
+}
+
 function questionTime(question) {
   return question?.ts ? formatTime(question.ts) : question?.time;
 }
@@ -450,7 +520,7 @@ function avatarStyle(avatar, fallbackBg = "rgba(255,255,255,.16)") {
 }
 
 watch(displayedQuestions, (questions) => {
-  if (activeTab.value === "settings") return;
+  if (activeTab.value === "settings" || activeTab.value === "topics") return;
   if (!selectedQuestion.value || !questions.some((q) => q.id === selectedQuestion.value.id)) {
     selectedQuestion.value = null;
     answerText.value = "";
@@ -467,7 +537,14 @@ watch(activeTab, () => {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadProfile(), loadStats(), loadPending(true), loadHistory("PUBLISHED", true), loadHistory("DISMISSED", true)]);
+    await Promise.all([
+      loadProfile(),
+      loadStats(),
+      loadPending(true),
+      loadHistory("PUBLISHED", true),
+      loadHistory("DISMISSED", true),
+      loadTopics(),
+    ]);
   } catch {
     // 已由拦截器 showToast
   }
@@ -576,7 +653,12 @@ onBeforeUnmount(() => {
           </article>
         </div>
 
-        <section v-if="activeTab !== 'settings'" class="owner-list" :aria-label="activeTabMeta?.label" @scroll="handleListScroll">
+        <section
+          v-if="activeTab !== 'settings' && activeTab !== 'topics'"
+          class="owner-list"
+          :aria-label="activeTabMeta?.label"
+          @scroll="handleListScroll"
+        >
           <header class="list-head">
             <span>
               <i :class="activeTabMeta?.icon" aria-hidden="true"></i>
@@ -604,6 +686,7 @@ onBeforeUnmount(() => {
               </span>
               <time>{{ questionTime(question) }}</time>
             </header>
+            <span v-if="question.topic" class="owner-topic-badge">{{ question.topic.title }}</span>
             <p>{{ question.question }}</p>
             <blockquote v-if="question.answer">{{ question.answer }}</blockquote>
           </article>
@@ -615,6 +698,66 @@ onBeforeUnmount(() => {
 
           <div v-else-if="currentPageState()?.loading || currentPageState()?.hasMore" class="owner-load-state" aria-live="polite">
             {{ currentPageState()?.loading ? "加载中" : "继续下滑加载更多" }}
+          </div>
+        </section>
+
+        <section v-else-if="activeTab === 'topics'" class="settings-panel topic-panel" aria-label="话题管理">
+          <header class="list-head">
+            <span><i class="ri-price-tag-3-line" aria-hidden="true"></i>话题</span>
+            <em>{{ activeTopics.length }} 个进行中</em>
+          </header>
+          <section class="topic-create">
+            <label>
+              <span>话题标题</span>
+              <input v-model="topicDraft.title" maxlength="24" placeholder="例如：六月创作提问" />
+            </label>
+            <label>
+              <span>简介</span>
+              <textarea v-model="topicDraft.description" rows="3" maxlength="500" placeholder="给参与者一点上下文"></textarea>
+            </label>
+            <label>
+              <span>到期时间</span>
+              <input v-model="topicDraft.expiresAt" type="datetime-local" />
+            </label>
+            <button
+              class="settings-save"
+              type="button"
+              :disabled="!topicDraft.title.trim() || topicSaving"
+              @click="saveTopic"
+            >
+              <i class="ri-add-line" aria-hidden="true"></i>
+              <span>{{ topicSaving ? "创建中" : "创建话题" }}</span>
+            </button>
+          </section>
+
+          <article v-for="topic in topics" :key="topic.id" class="topic-row">
+            <header>
+              <span>
+                <strong>{{ topic.title }}</strong>
+                <em>{{ topicStatusText(topic) }} · {{ topicExpiresText(topic) }} · {{ topic.questionCount || 0 }} 个问题</em>
+              </span>
+              <span class="topic-status" :class="{ inactive: !topic.available }">{{ topicStatusText(topic) }}</span>
+            </header>
+            <p v-if="topic.description">{{ topic.description }}</p>
+            <footer>
+              <button class="plain-action" type="button" @click="copyTopicUrl(topic)">
+                <i class="ri-links-line" aria-hidden="true"></i>
+                <span>复制链接</span>
+              </button>
+              <button
+                v-if="topic.status === 'ACTIVE'"
+                class="plain-action danger"
+                type="button"
+                @click="closeOwnerTopic(topic)"
+              >
+                关闭
+              </button>
+            </footer>
+          </article>
+
+          <div v-if="topics.length === 0" class="owner-empty">
+            <i class="ri-price-tag-3-line" aria-hidden="true"></i>
+            <span>还没有话题</span>
           </div>
         </section>
 
@@ -698,6 +841,7 @@ onBeforeUnmount(() => {
           </button>
         </header>
         <time class="drawer-time">{{ questionTime(selectedQuestion) }}</time>
+        <span v-if="selectedQuestion.topic" class="owner-topic-badge drawer-topic">{{ selectedQuestion.topic.title }}</span>
         <p class="drawer-question">{{ selectedQuestion.question }}</p>
 
         <section v-if="selectedIsPending" class="answer-editor">
@@ -1116,6 +1260,23 @@ onBeforeUnmount(() => {
   -webkit-line-clamp: 2;
 }
 
+.owner-topic-badge {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 24px;
+  align-items: center;
+  margin-bottom: 9px;
+  border-radius: 12px;
+  padding: 0 9px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .owner-question blockquote {
   display: -webkit-box;
   margin: 12px 0 0;
@@ -1205,6 +1366,92 @@ onBeforeUnmount(() => {
 .settings-save.secondary {
   background: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-save:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.topic-panel {
+  gap: 16px;
+}
+
+.topic-create,
+.topic-row {
+  display: grid;
+  gap: 12px;
+  border-radius: 20px;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.topic-create label {
+  display: grid;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.topic-row header,
+.topic-row footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topic-row strong,
+.topic-row em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topic-row strong {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.topic-row em {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.topic-row p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.topic-status {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.86);
+  color: rgba(20, 18, 28, 0.88);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.topic-status.inactive {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.plain-action.danger {
+  color: rgba(255, 188, 188, 0.92);
+}
+
+.drawer-topic {
+  margin-top: 8px;
 }
 
 .media-settings {

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { uploadAttachmentObject } from '@/api/attachments'
 import { useAuthStore } from '@/stores/auth'
+import { useLogoutConfirm } from '@/composables/useLogoutConfirm'
 import { formatTime } from '@/utils'
 import { assetSrc } from '@/utils/assets'
 import ClassicAskBoxPage from '@/components/classic/ClassicAskBoxPage.vue'
@@ -16,15 +17,18 @@ import {
   answerQuestion,
   dismissQuestion,
   deleteQuestion,
+  getTopics,
 } from '@/api/owner'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { confirmLogout } = useLogoutConfirm()
 
 const boxProfile = ref({ displayName: '', slug: '', description: '', avatar: null, background: null })
 const pendingQuestions = ref([])
 const publishedQA = ref([])
 const dismissedQuestions = ref([])
+const topics = ref([])
 const stats = ref({ pendingCount: 0, publishedCount: 0, dismissedCount: 0, todayReceivedCount: 0 })
 const pageState = ref({
   pending: { page: 1, hasMore: false, loading: false },
@@ -87,6 +91,7 @@ const accountName = computed(() => auth.user?.displayName || auth.user?.username
 const pageTitle = computed(() => `${accountName.value}的提问箱`)
 const accountEmail = computed(() => auth.user?.email || auth.user?.username || '')
 const accountAvatar = computed(() => accountAvatarPreview.value || auth.user?.avatar || boxProfile.value.avatar)
+const activeTopics = computed(() => topics.value.filter((topic) => topic.available))
 const displayedQuestions = computed(() => {
   if (questionStatusTab.value === 'pending') return pendingQuestions.value
   if (questionStatusTab.value === 'published') return publishedQA.value
@@ -128,6 +133,7 @@ async function loadPending(reset = false) {
     const items = r.records.map((q) => ({
       id: q.id,
       profile: q.avatar,
+      topic: q.topic,
       question: q.question,
       ts: q.ts,
       time: formatTime(q.ts),
@@ -153,6 +159,7 @@ async function loadHistory(status, reset = false) {
       id: q.id,
       profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
+      topic: q.topic,
       question: q.question,
       answer: q.answer,
       ts: q.ts,
@@ -164,6 +171,10 @@ async function loadHistory(status, reset = false) {
   } finally {
     s.loading = false
   }
+}
+
+async function loadTopics() {
+  topics.value = await getTopics()
 }
 
 function currentPageState() {
@@ -444,9 +455,8 @@ async function copyPublicUrl() {
   }
 }
 
-async function handleLogout() {
-  await auth.logout()
-  router.replace('/login')
+function handleLogout() {
+  confirmLogout()
 }
 
 function avatarSrc(avatar) {
@@ -478,7 +488,7 @@ watch([homeSection, questionStatusTab], () => {
 
 onMounted(async () => {
   try {
-    await Promise.all([auth.ensureUser(), loadProfile(), loadStats(), loadPending(true)])
+    await Promise.all([auth.ensureUser(), loadProfile(), loadStats(), loadPending(true), loadTopics()])
     document.addEventListener('visibilitychange', handleVisibilityChange)
     startPolling()
   } catch {
@@ -553,6 +563,7 @@ onBeforeUnmount(() => {
                   </span>
                   <time>{{ questionTime(question) }}</time>
                 </header>
+                <span v-if="question.topic" class="topic-badge">{{ question.topic.title }}</span>
                 <p>{{ question.question }}</p>
                 <blockquote v-if="question.answer">{{ question.answer }}</blockquote>
               </article>
@@ -616,6 +627,14 @@ onBeforeUnmount(() => {
               <small>{{ publicUrl }}</small>
             </span>
             <i class="ri-file-copy-line" aria-hidden="true"></i>
+          </button>
+          <button class="mine-row" type="button" @click="router.push('/topics')">
+            <span class="mine-row__icon"><i class="ri-price-tag-3-line" aria-hidden="true"></i></span>
+            <span class="mine-row__text">
+              <strong>话题管理</strong>
+              <small>{{ activeTopics.length }} 个进行中话题</small>
+            </span>
+            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
           </button>
         </section>
 
@@ -734,6 +753,7 @@ onBeforeUnmount(() => {
           </button>
         </header>
         <div class="detail-scroll">
+          <span v-if="selectedQuestion.topic" class="topic-badge detail-topic">{{ selectedQuestion.topic.title }}</span>
           <p class="detail-question">{{ selectedQuestion.question }}</p>
 
           <section v-if="selectedIsPending" class="answer-editor">
@@ -1145,6 +1165,23 @@ time {
   overflow-wrap: anywhere;
 }
 
+.topic-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  margin-top: 10px;
+  border-radius: 999px;
+  padding: 0 9px;
+  overflow: hidden;
+  background: rgba(47, 111, 237, 0.08);
+  color: var(--classic-primary);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .question-card blockquote {
   margin: 10px 0 0;
   padding: 0 0 0 12px;
@@ -1311,6 +1348,11 @@ time {
 
 .primary-pill:disabled {
   opacity: 0.6;
+}
+
+.detail-topic {
+  margin-top: 14px;
+  margin-bottom: 10px;
 }
 
 .detail-panel {
