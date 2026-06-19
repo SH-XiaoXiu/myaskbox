@@ -3,11 +3,12 @@ import { createPinia } from "pinia";
 import Vant from "vant";
 import "vant/lib/index.css";
 import "remixicon/fonts/remixicon.css";
-import App from "./App.vue";
-import router from "./router";
-import "./style.css";
-import { setUnauthorizedHandler } from "./api/client";
-import { useAuthStore } from "./stores/auth";
+import App from "@/App.vue";
+import router from "@/router";
+import "@/style.css";
+import "@theme/style.css";
+import { setUnauthorizedHandler } from "@/api/client";
+import { useAuthStore } from "@/stores/auth";
 
 const app = createApp(App);
 const pinia = createPinia();

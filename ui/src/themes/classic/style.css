@@ -1,0 +1,99 @@
+:root {
+  --classic-bg: #f6f7f9;
+  --classic-surface: #ffffff;
+  --classic-surface-soft: #f1f4f8;
+  --classic-text: #1f2937;
+  --classic-muted: #667085;
+  --classic-faint: #98a2b3;
+  --classic-line: #e4e7ec;
+  --classic-primary: #2f6fed;
+  --classic-primary-soft: #edf4ff;
+  --classic-green: #12b76a;
+  --classic-amber: #f79009;
+  --classic-red: #f04438;
+  --classic-radius: 8px;
+  --classic-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --classic-spring: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --classic-shadow-soft: 0 8px 24px rgba(31, 41, 55, 0.06);
+  --classic-shadow-float: 0 12px 30px rgba(31, 41, 55, 0.09);
+  --van-primary-color: var(--classic-primary);
+  --van-radius-md: 8px;
+  --van-radius-lg: 8px;
+  --van-cell-background: transparent;
+}
+
+body {
+  background: var(--classic-bg);
+  color: var(--classic-text);
+}
+
+.classic-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  isolation: isolate;
+  background: var(--classic-bg);
+}
+
+.classic-enter {
+  animation: classic-page-in 420ms var(--classic-ease) both;
+}
+
+.classic-card {
+  position: relative;
+  border: 1px solid rgba(227, 233, 242, 0.92);
+  border-radius: var(--classic-radius);
+  background: var(--classic-surface);
+  box-shadow: var(--classic-shadow-soft);
+}
+
+.classic-press {
+  transition:
+    transform 240ms var(--classic-spring),
+    box-shadow 240ms var(--classic-ease),
+    background-color 180ms ease;
+}
+
+.classic-press:hover {
+  box-shadow: var(--classic-shadow-float);
+}
+
+.classic-press:active {
+  transform: translate3d(0, 1px, 0) scale(0.985);
+}
+
+.classic-list-move,
+.classic-list-enter-active,
+.classic-list-leave-active {
+  transition:
+    transform 260ms var(--classic-spring),
+    opacity 220ms ease;
+}
+
+.classic-list-enter-from,
+.classic-list-leave-to {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+}
+
+@keyframes classic-page-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .classic-enter,
+  .classic-list-move,
+  .classic-list-enter-active,
+  .classic-list-leave-active,
+  .classic-press {
+    animation: none !important;
+    transition: none !important;
+  }
+}

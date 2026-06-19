@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { showSuccessToast } from 'vant'
-import { listSettings, updateSettings } from '../../api/admin'
+import { listSettings, updateSettings } from '@/api/admin'
 
 const loading = ref(true)
 const error = ref('')

@@ -1,98 +1,58 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '@/stores/auth'
+import publicRoutes from '@theme/routes'
 
 const routes = [
   {
     path: '/',
     name: 'root',
-    component: () => import('../components/RoutePlaceholder.vue'),
+    component: () => import('@/components/common/RoutePlaceholder.vue'),
   },
-  {
-    path: '/login',
-    name: 'login',
-    component: () => import('../components/LoginPage.vue'),
-  },
-  {
-    path: '/register',
-    name: 'register',
-    component: () => import('../components/RegisterPage.vue'),
-  },
-  {
-    path: '/unauthorized',
-    name: 'unauthorized',
-    component: () => import('../components/UnauthorizedPage.vue'),
-  },
-  {
-    path: '/forbidden',
-    name: 'forbidden',
-    component: () => import('../components/ForbiddenPage.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/home',
-    name: 'home',
-    component: () => import('../components/AskBoxOwnerPage.vue'),
-    meta: { requiresAuth: true, roles: ['BOX_OWNER'] },
-  },
-  {
-    path: '/password',
-    name: 'password',
-    component: () => import('../components/ChangePasswordPage.vue'),
-    meta: { requiresAuth: true },
-  },
+  ...publicRoutes.beforeAdmin,
   {
     path: '/admin',
-    component: () => import('../components/admin/AdminLayout.vue'),
+    component: () => import('@/components/admin/AdminLayout.vue'),
     meta: { requiresAuth: true, roles: ['ADMIN'] },
     redirect: '/admin/dashboard',
     children: [
       {
         path: 'dashboard',
         name: 'admin-dashboard',
-        component: () => import('../components/admin/Dashboard.vue'),
+        component: () => import('@/components/admin/AdminDashboardPage.vue'),
       },
       {
         path: 'users',
         name: 'admin-users',
-        component: () => import('../components/admin/UserList.vue'),
+        component: () => import('@/components/admin/AdminUserListPage.vue'),
       },
       {
         path: 'boxes',
         name: 'admin-boxes',
-        component: () => import('../components/admin/BoxList.vue'),
+        component: () => import('@/components/admin/AdminBoxListPage.vue'),
       },
       {
         path: 'questions',
         name: 'admin-questions',
-        component: () => import('../components/admin/QuestionList.vue'),
+        component: () => import('@/components/admin/AdminQuestionListPage.vue'),
       },
       {
         path: 'attachments',
         name: 'admin-attachments',
-        component: () => import('../components/admin/AttachmentList.vue'),
+        component: () => import('@/components/admin/AdminAttachmentListPage.vue'),
       },
       {
         path: 'settings',
         name: 'admin-settings',
-        component: () => import('../components/admin/SettingsPage.vue'),
+        component: () => import('@/components/admin/AdminSettingsPage.vue'),
       },
       {
         path: 'roles',
         name: 'admin-roles',
-        component: () => import('../components/admin/RoleList.vue'),
+        component: () => import('@/components/admin/AdminRoleListPage.vue'),
       },
     ],
   },
-  {
-    path: '/box/:slug',
-    name: 'ask',
-    component: () => import('../components/AskBoxLiquidPage.vue'),
-  },
-  {
-    path: '/:pathMatch(.*)*',
-    name: 'not-found',
-    component: () => import('../components/NotFoundPage.vue'),
-  },
+  ...publicRoutes.afterAdmin,
 ]
 
 const router = createRouter({

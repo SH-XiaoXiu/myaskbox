@@ -2,9 +2,9 @@
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { changePassword } from "../api/auth";
-import { pageBackground } from "../assets/background";
-import { useAuthStore } from "../stores/auth";
+import { changePassword } from "@/api/auth";
+import { pageBackground } from "@/assets/background";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
 const auth = useAuthStore();

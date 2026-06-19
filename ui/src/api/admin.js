@@ -1,4 +1,4 @@
-import api from './client'
+import api from '@/api/client'
 
 // ==================== 仪表盘 ====================
 

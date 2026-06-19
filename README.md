@@ -115,9 +115,18 @@ cd backend
 ```bash
 cd ui
 npm run dev
+npm run dev:classic
 npm run build
+npm run build:classic
 npm run preview
 ```
+
+前端公共侧支持两套编译期主题：
+
+- `liquid`：默认主题，保留现有液态玻璃 UI。
+- `classic`：非液态玻璃主题，使用 Vant 轻应用组件和更克制顺滑的动效。
+
+构建产物分别输出到 `ui/dist/liquid` 和 `ui/dist/classic`。`npm run build` 默认等价于 `npm run build:liquid`，`npm run build:all` 可同时构建两套主题。
 
 基础服务：
 

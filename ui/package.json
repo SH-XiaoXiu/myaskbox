@@ -4,8 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --mode liquid",
+    "dev:liquid": "vite --mode liquid",
+    "dev:classic": "vite --mode classic",
+    "build": "vite build --mode liquid",
+    "build:liquid": "vite build --mode liquid",
+    "build:classic": "vite build --mode classic",
+    "build:all": "npm run build:liquid && npm run build:classic",
     "preview": "vite preview"
   },
   "dependencies": {

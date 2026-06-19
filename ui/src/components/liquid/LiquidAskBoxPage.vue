@@ -16,9 +16,9 @@ import {
   getPublicBoxProfile,
   getPublishedQA,
   submitQuestion,
-} from "../api/public";
-import { pageBackground } from "../assets/background";
-import { formatTime } from "../utils";
+} from "@/api/public";
+import { pageBackground } from "@/assets/background";
+import { formatTime } from "@/utils";
 
 const route = useRoute();
 const slug = computed(() => route.params.slug || "xiaoxiu");

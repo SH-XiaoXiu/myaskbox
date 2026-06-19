@@ -1,4 +1,4 @@
-import api from './client'
+import api from '@/api/client'
 
 /** GET /api/attachments/anonymous-avatars */
 export const getAnonymousAvatars = () => api.get('/attachments/anonymous-avatars')

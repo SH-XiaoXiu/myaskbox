@@ -3,9 +3,9 @@ import { animate } from "motion";
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { pageBackground } from "../assets/background";
-import { getRegisterConfig, sendLoginCode } from "../api/auth";
-import { useAuthStore } from "../stores/auth";
+import { pageBackground } from "@/assets/background";
+import { getRegisterConfig, sendLoginCode } from "@/api/auth";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
 const authStore = useAuthStore();

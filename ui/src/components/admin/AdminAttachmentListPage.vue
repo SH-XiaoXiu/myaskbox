@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { showDialog, showSuccessToast } from 'vant'
-import { listAttachments, createAttachment, updateAttachment, deleteAttachment } from '../../api/admin'
+import { listAttachments, createAttachment, updateAttachment, deleteAttachment } from '@/api/admin'
 
 const loading = ref(true)
 const error = ref('')

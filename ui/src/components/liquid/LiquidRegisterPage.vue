@@ -4,9 +4,9 @@ import { LiquidGlass } from "@ybouane/liquidglass";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { getRegisterConfig, sendRegisterCode } from '../api/auth'
-import { useAuthStore } from '../stores/auth'
-import { pageBackground } from '../assets/background'
+import { getRegisterConfig, sendRegisterCode } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
+import { pageBackground } from '@/assets/background'
 
 const router = useRouter()
 const auth = useAuthStore()

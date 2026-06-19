@@ -1,7 +1,7 @@
 <script setup>
 import { LiquidGlass } from "@ybouane/liquidglass";
 import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import { pageBackground } from "../assets/background";
+import { pageBackground } from "@/assets/background";
 
 defineProps({
   statusCode: {

@@ -1,7 +1,7 @@
 <script setup>
 import { useRouter } from "vue-router";
-import { useAuthStore } from "../stores/auth";
-import AuthErrorShell from "./AuthErrorShell.vue";
+import { useAuthStore } from "@/stores/auth";
+import LiquidErrorShell from "@/components/liquid/LiquidErrorShell.vue";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -24,7 +24,7 @@ function goBack() {
 </script>
 
 <template>
-  <AuthErrorShell
+  <LiquidErrorShell
     status-code="404"
     eyebrow="页面不存在"
     title="没有找到这个页面"

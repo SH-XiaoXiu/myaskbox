@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix ui run dev",
+    "dev:liquid": "npm --prefix ui run dev:liquid",
+    "dev:classic": "npm --prefix ui run dev:classic",
+    "build": "npm --prefix ui run build",
+    "build:liquid": "npm --prefix ui run build:liquid",
+    "build:classic": "npm --prefix ui run build:classic",
+    "build:all": "npm --prefix ui run build:all",
+    "preview": "npm --prefix ui run preview"
+  }
+}

@@ -3,15 +3,15 @@ import { LiquidGlass } from "@ybouane/liquidglass";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { showSuccessToast, showToast } from "vant";
-import { pageBackground } from "../assets/background";
-import { useAuthStore } from "../stores/auth";
-import { formatTime } from "../utils";
+import { pageBackground } from "@/assets/background";
+import { useAuthStore } from "@/stores/auth";
+import { formatTime } from "@/utils";
 import {
   getBoxProfile, updateBoxProfile,
   getBoxStats,
   getPendingQuestions, getHistoryQuestions,
   answerQuestion, dismissQuestion, deleteQuestion,
-} from "../api/owner";
+} from "@/api/owner";
 
 const router = useRouter();
 const auth = useAuthStore();

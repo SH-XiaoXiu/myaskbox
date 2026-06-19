@@ -1,7 +1,7 @@
 <script setup>
 import { useRouter } from "vue-router";
-import { useAuthStore } from "../stores/auth";
-import AuthErrorShell from "./AuthErrorShell.vue";
+import { useAuthStore } from "@/stores/auth";
+import LiquidErrorShell from "@/components/liquid/LiquidErrorShell.vue";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -17,7 +17,7 @@ async function handleLogout() {
 </script>
 
 <template>
-  <AuthErrorShell
+  <LiquidErrorShell
     status-code="403"
     eyebrow="访问受限"
     title="当前账号暂无访问权限"

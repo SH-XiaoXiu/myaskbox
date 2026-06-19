@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { listRoles, listPermissions } from '../../api/admin'
-import { buildPermissionTree } from '../../utils'
+import { listRoles, listPermissions } from '@/api/admin'
+import { buildPermissionTree } from '@/utils'
 
 const loading = ref(true)
 const error = ref('')

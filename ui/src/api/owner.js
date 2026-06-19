@@ -1,4 +1,4 @@
-import api from './client'
+import api from '@/api/client'
 
 /** GET /api/box/profile */
 export const getBoxProfile = () => api.get('/box/profile')

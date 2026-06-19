@@ -1,8 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getDashboardStats, listUsers } from '../../api/admin'
-import { formatTime } from '../../utils'
+import { getDashboardStats, listUsers } from '@/api/admin'
+import { formatTime } from '@/utils'
 
 const router = useRouter()
 

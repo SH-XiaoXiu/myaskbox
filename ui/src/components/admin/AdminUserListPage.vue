@@ -1,8 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { showDialog, showSuccessToast } from 'vant'
-import { listUsers, createUser, updateUser, disableUser, enableUser, assignUserRoles, listRoles } from '../../api/admin'
-import { formatTime } from '../../utils'
+import { listUsers, createUser, updateUser, disableUser, enableUser, assignUserRoles, listRoles } from '@/api/admin'
+import { formatTime } from '@/utils'
 
 const loading = ref(true)
 const error = ref('')

@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { showDialog, showSuccessToast } from 'vant'
-import { listAllQuestions, forceDeleteQuestion, deleteAnswer } from '../../api/admin'
-import { formatTime } from '../../utils'
+import { listAllQuestions, forceDeleteQuestion, deleteAnswer } from '@/api/admin'
+import { formatTime } from '@/utils'
 
 const loading = ref(true)
 const error = ref('')

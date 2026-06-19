@@ -1,8 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { showSuccessToast } from 'vant'
-import { listBoxes, updateBox } from '../../api/admin'
-import { formatTime } from '../../utils'
+import { listBoxes, updateBox } from '@/api/admin'
+import { formatTime } from '@/utils'
 
 const loading = ref(true)
 const error = ref('')

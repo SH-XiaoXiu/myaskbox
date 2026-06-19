@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import AuthErrorShell from "./AuthErrorShell.vue";
+import LiquidErrorShell from "@/components/liquid/LiquidErrorShell.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -27,7 +27,7 @@ function goBack() {
 </script>
 
 <template>
-  <AuthErrorShell
+  <LiquidErrorShell
     status-code="401"
     eyebrow="需要登录"
     title="请先登录 AskBox"
