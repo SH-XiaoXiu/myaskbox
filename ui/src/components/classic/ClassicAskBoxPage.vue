@@ -38,7 +38,9 @@ const boxProfile = ref({ slug: '', displayName: '', description: '', avatar: nul
 const avatarList = ref([])
 const selectedAvatar = ref(null)
 const publishedQA = ref([])
+const pageError = ref('')
 const qaLoading = ref(false)
+const refreshing = ref(false)
 const qaPage = ref(1)
 const qaHasMore = ref(false)
 const composerOpen = ref(false)
@@ -52,14 +54,26 @@ const listRef = ref(null)
 const ownerAvatarRef = ref(null)
 const sendButtonRef = ref(null)
 const avatarPickerRef = ref(null)
+const detailCardRef = ref(null)
+const detailTriggerRef = ref(null)
+const detailOriginStyle = ref({})
 
 let receiptTimer = 0
 let avatarSnapTimer = 0
 let flyingFrame = 0
+let qaScrollFrame = 0
+let qaSettleFrame = 0
+let detailFocusTimer = 0
 let activeFlyer = null
+let loadRequestToken = 0
+const qaMotionState = {
+  lastScrollTop: 0,
+  lastTime: 0,
+  velocity: 0,
+}
 
-const boxTitle = computed(() => boxProfile.value.displayName?.trim() || 'AskBox')
-const boxDescription = computed(() => boxProfile.value.description?.trim() || '匿名提问和公开回复')
+const boxTitle = computed(() => boxProfile.value.displayName?.trim() || boxProfile.value.slug || '')
+const boxDescription = computed(() => boxProfile.value.description?.trim() || '')
 const canSend = computed(() => content.value.trim().length > 0 && !sending.value && selectedAvatar.value)
 const avatarLoopOptions = computed(() => {
   if (!avatarList.value.length) return []
@@ -92,9 +106,10 @@ function avatarStyle(avatar, fallbackBg = '#eff6ff') {
   }
 }
 
-async function loadBoxProfile() {
+async function loadBoxProfile(token = loadRequestToken) {
   try {
     const profile = await getPublicBoxProfile(slug.value)
+    if (token !== loadRequestToken) return
     boxProfile.value = {
       slug: profile.slug || slug.value,
       displayName: profile.displayName || '',
@@ -103,19 +118,23 @@ async function loadBoxProfile() {
       background: profile.background || null,
     }
   } catch (err) {
+    if (token !== loadRequestToken) return
     boxProfile.value = { slug: slug.value, displayName: '', description: '' }
     console.error('Failed to load box profile', err)
+    throw err
   }
 }
 
-async function loadAvatars() {
+async function loadAvatars(token = loadRequestToken) {
   try {
     const list = await getAnonymousAvatars()
+    if (token !== loadRequestToken) return
     avatarList.value = list.map(toAvatarOption)
     selectedAvatar.value = avatarList.value[0] || null
     nextTick(() => centerAvatar(selectedAvatarIndex.value, 'auto'))
   } catch (err) {
     console.error('Failed to load avatars', err)
+    throw err
   }
 }
 
@@ -247,13 +266,14 @@ async function animatePaperPlane() {
   })
 }
 
-async function loadPublishedQA(reset = false) {
+async function loadPublishedQA(reset = false, token = loadRequestToken) {
   if (qaLoading.value) return
   qaLoading.value = true
   const page = reset ? 1 : qaPage.value
   try {
     const result = await getPublishedQA(slug.value, page, 10)
-    const items = result.records.map((q) => ({
+    if (token !== loadRequestToken) return
+    const items = result.records.map((q, index) => ({
       id: q.id,
       profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
@@ -261,27 +281,151 @@ async function loadPublishedQA(reset = false) {
       answer: q.answer,
       ts: q.ts,
       time: formatTime(q.ts),
+      motionIndex: index,
     }))
     publishedQA.value = reset ? items : [...publishedQA.value, ...items]
     qaPage.value = page + 1
     qaHasMore.value = page < result.totalPages
   } catch (err) {
     console.error('Failed to load QA', err)
+    throw err
   } finally {
-    qaLoading.value = false
+    if (token === loadRequestToken) {
+      qaLoading.value = false
+    }
   }
 }
 
 function handleScroll() {
+  scheduleQAScrollMotion()
+  if (qaSettleFrame) window.cancelAnimationFrame(qaSettleFrame)
+  qaSettleFrame = window.requestAnimationFrame(settleQAScrollMotion)
+
   const list = listRef.value
   if (!list || qaLoading.value || !qaHasMore.value) return
   const distance = list.scrollHeight - list.scrollTop - list.clientHeight
   if (distance < 220) loadPublishedQA(false)
 }
 
-function openDetail(qa) {
+function shouldShowLoadState() {
+  return publishedQA.value.length > 0 && (qaLoading.value || qaHasMore.value)
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+}
+
+function resetQACardMotion() {
+  const list = listRef.value
+  if (!list) return
+  for (const card of list.querySelectorAll('.qa-card')) {
+    card.style.removeProperty('--scroll-y')
+    card.style.removeProperty('--scroll-scale')
+    card.style.removeProperty('--scroll-opacity')
+    card.style.removeProperty('--scroll-shadow')
+  }
+}
+
+function applyQAScrollMotion() {
+  const list = listRef.value
+  if (!list || prefersReducedMotion() || detailOpen.value) {
+    resetQACardMotion()
+    return
+  }
+
+  const now = performance.now()
+  const previousTime = qaMotionState.lastTime || now
+  const dt = Math.max(16, now - previousTime)
+  const rawVelocity = ((list.scrollTop - qaMotionState.lastScrollTop) / dt) * 16
+  qaMotionState.velocity = qaMotionState.velocity * 0.68 + rawVelocity * 0.32
+  qaMotionState.lastScrollTop = list.scrollTop
+  qaMotionState.lastTime = now
+
+  const listRect = list.getBoundingClientRect()
+  const edgeRange = Math.min(132, listRect.height * 0.22)
+  const velocityPull = Math.max(-14, Math.min(14, qaMotionState.velocity * 5.6))
+
+  for (const card of list.querySelectorAll('.qa-card')) {
+    const rect = card.getBoundingClientRect()
+    const topProgress = Math.min(1, Math.max(0, (listRect.top - rect.top) / edgeRange))
+    const bottomProgress = Math.min(1, Math.max(0, (rect.bottom - listRect.bottom) / edgeRange))
+    const edgeProgress = Math.max(topProgress, bottomProgress)
+    const easedEdge = 1 - (1 - edgeProgress) ** 3
+    const edgeDirection = bottomProgress > topProgress ? 1 : -1
+    const edgePull = edgeDirection * 18 * easedEdge
+    const lag = -velocityPull * easedEdge
+    const y = edgePull + lag
+    const scale = 1 - easedEdge * 0.025
+    const opacity = 1 - easedEdge * 0.36
+    const shadowLift = Math.min(1, Math.abs(qaMotionState.velocity) / 3.2)
+
+    card.style.setProperty('--scroll-y', `${y.toFixed(2)}px`)
+    card.style.setProperty('--scroll-scale', scale.toFixed(4))
+    card.style.setProperty('--scroll-opacity', opacity.toFixed(3))
+    card.style.setProperty('--scroll-shadow', shadowLift.toFixed(3))
+  }
+}
+
+function scheduleQAScrollMotion() {
+  if (qaScrollFrame) return
+  qaScrollFrame = window.requestAnimationFrame(() => {
+    qaScrollFrame = 0
+    applyQAScrollMotion()
+  })
+}
+
+function settleQAScrollMotion() {
+  if (Math.abs(qaMotionState.velocity) < 0.018) {
+    qaMotionState.velocity = 0
+    applyQAScrollMotion()
+    qaSettleFrame = 0
+    return
+  }
+
+  qaMotionState.velocity *= 0.74
+  applyQAScrollMotion()
+  qaSettleFrame = window.requestAnimationFrame(settleQAScrollMotion)
+}
+
+function getDetailOriginStyle(event) {
+  const rect = event?.currentTarget?.getBoundingClientRect?.()
+  if (!rect) return {}
+  const vw = window.innerWidth || document.documentElement.clientWidth
+  const vh = window.innerHeight || document.documentElement.clientHeight
+  const panelWidth = Math.min(vw * 0.92, 430)
+  const panelHeight = Math.min(vh * 0.78, 620)
+  const originX = rect.left + rect.width / 2 - vw / 2
+  const originY = rect.top + rect.height / 2 - vh / 2
+  const originScaleX = Math.max(0.34, Math.min(1.06, rect.width / panelWidth))
+  const originScaleY = Math.max(0.24, Math.min(0.86, rect.height / panelHeight))
+
+  return {
+    '--detail-origin-x': `${originX.toFixed(1)}px`,
+    '--detail-origin-y': `${originY.toFixed(1)}px`,
+    '--detail-origin-scale-x': originScaleX.toFixed(3),
+    '--detail-origin-scale-y': originScaleY.toFixed(3),
+  }
+}
+
+function openDetail(qa, event) {
+  if (composerOpen.value) closeComposer(true)
+  detailTriggerRef.value = event?.currentTarget || null
+  detailOriginStyle.value = getDetailOriginStyle(event)
   selectedQA.value = qa
   detailOpen.value = true
+  nextTick(() => {
+    detailCardRef.value?.focus?.({ preventScroll: true })
+    resetQACardMotion()
+  })
+}
+
+function closeDetail() {
+  detailOpen.value = false
+  window.clearTimeout(detailFocusTimer)
+  detailFocusTimer = window.setTimeout(() => {
+    detailTriggerRef.value?.focus?.({ preventScroll: true })
+    detailTriggerRef.value = null
+  }, prefersReducedMotion() ? 0 : 260)
 }
 
 function openComposer() {
@@ -324,8 +468,26 @@ async function handleSend() {
   }
 }
 
+async function handlePullRefresh() {
+  refreshing.value = true
+  try {
+    await resetAndLoadPublicContent()
+  } finally {
+    refreshing.value = false
+  }
+}
+
 async function resetAndLoadPublicContent() {
   if (qaLoading.value) return
+  const token = ++loadRequestToken
+  pageError.value = ''
+  if (boxProfile.value.slug !== slug.value) {
+    boxProfile.value = { slug: slug.value, displayName: '', description: '', avatar: null }
+  }
+  if (props.showComposer && !avatarList.value.length) {
+    avatarList.value = []
+    selectedAvatar.value = null
+  }
   selectedQA.value = null
   detailOpen.value = false
   composerOpen.value = false
@@ -334,7 +496,18 @@ async function resetAndLoadPublicContent() {
   publishedQA.value = []
   qaPage.value = 1
   qaHasMore.value = false
-  await Promise.all([loadBoxProfile(), loadPublishedQA(true)])
+
+  try {
+    const jobs = [loadBoxProfile(token), loadPublishedQA(true, token)]
+    if (props.showComposer) jobs.unshift(loadAvatars(token))
+    await Promise.all(jobs)
+    if (token !== loadRequestToken) return
+    await nextTick()
+    centerAvatar(selectedAvatarIndex.value, 'auto')
+  } catch (err) {
+    if (token !== loadRequestToken) return
+    pageError.value = err?.message || '加载失败'
+  }
 }
 
 defineExpose({
@@ -359,84 +532,103 @@ watch(
   },
 )
 
+watch(publishedQA, () => {
+  nextTick(() => scheduleQAScrollMotion())
+})
+
 onMounted(async () => {
-  const jobs = [loadBoxProfile(), loadPublishedQA(true)]
-  if (props.showComposer) jobs.unshift(loadAvatars())
-  await Promise.all(jobs)
+  await resetAndLoadPublicContent()
+  await nextTick()
+  qaMotionState.lastScrollTop = listRef.value?.scrollTop || 0
+  qaMotionState.lastTime = performance.now()
+  scheduleQAScrollMotion()
 })
 
 onBeforeUnmount(() => {
   window.cancelAnimationFrame(flyingFrame)
+  if (qaScrollFrame) window.cancelAnimationFrame(qaScrollFrame)
+  if (qaSettleFrame) window.cancelAnimationFrame(qaSettleFrame)
   activeFlyer?.remove()
   window.clearTimeout(receiptTimer)
   window.clearTimeout(avatarSnapTimer)
+  window.clearTimeout(detailFocusTimer)
 })
 </script>
 
 <template>
   <main class="classic-ask classic-page classic-enter" :class="{ 'is-embedded': embedded, 'has-composer': showComposer }">
-    <header class="ask-head">
+    <header class="ask-head" :class="{ 'is-detail-muted': detailOpen }">
       <div class="ask-profile">
         <span ref="ownerAvatarRef" class="ask-avatar" :style="avatarStyle(boxProfile.avatar)">
           <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
-          <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
         </span>
         <div>
           <h1>{{ boxTitle }}</h1>
-          <p>{{ boxDescription }}</p>
+          <p v-if="boxDescription">{{ boxDescription }}</p>
         </div>
       </div>
       <p class="ask-meta">{{ publishedQA.length }} 条公开回复</p>
     </header>
 
-    <section ref="listRef" class="ask-list" aria-label="公开回复列表" @scroll="handleScroll">
-      <TransitionGroup name="classic-list" tag="div" class="ask-list__inner">
-        <article
-          v-for="(qa, index) in publishedQA"
-          :key="qa.id"
-          class="classic-card classic-press qa-card"
-          role="button"
-          tabindex="0"
-          :style="{ '--card-index': index }"
-          @click="openDetail(qa)"
-          @keydown.enter.prevent="openDetail(qa)"
-          @keydown.space.prevent="openDetail(qa)"
-        >
-          <header class="qa-card-head">
-            <span class="qa-identity">
-              <span class="mini-avatar" :style="avatarStyle(qa.profile)">
-                <img v-if="avatarSrc(qa.profile)" :src="avatarSrc(qa.profile)" alt="" />
+    <van-pull-refresh v-model="refreshing" class="ask-refresh" @refresh="handlePullRefresh">
+      <section
+        ref="listRef"
+        class="ask-list"
+        :class="{ 'is-detail-muted': detailOpen }"
+        aria-label="公开回复列表"
+        @scroll="handleScroll"
+      >
+        <TransitionGroup name="classic-list" tag="div" class="ask-list__inner">
+          <article
+            v-for="qa in publishedQA"
+            :key="qa.id"
+            class="classic-card classic-press qa-card"
+            role="button"
+            tabindex="0"
+            :style="{ '--card-index': qa.motionIndex }"
+            @click="openDetail(qa, $event)"
+            @keydown.enter.prevent="openDetail(qa, $event)"
+            @keydown.space.prevent="openDetail(qa, $event)"
+          >
+            <header class="qa-card-head">
+              <span class="qa-identity">
+                <span class="mini-avatar" :style="avatarStyle(qa.profile)">
+                  <img v-if="avatarSrc(qa.profile)" :src="avatarSrc(qa.profile)" alt="" />
+                </span>
               </span>
-            </span>
-            <time>{{ qa.time }}</time>
-          </header>
-          <div class="qa-body">
-            <p class="qa-question">{{ qa.question }}</p>
-            <p class="qa-answer" :class="{ muted: !qa.answer }">
-              <span
-                v-if="qa.answer"
-                class="mini-avatar owner qa-answer-avatar"
-                :style="avatarStyle(qa.ownerAvatar || boxProfile.avatar)"
-              >
-                <img
-                  v-if="avatarSrc(qa.ownerAvatar || boxProfile.avatar)"
-                  :src="avatarSrc(qa.ownerAvatar || boxProfile.avatar)"
-                  alt=""
-                />
-                <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
-              </span>
-              <span class="qa-answer-text">{{ qa.answer || '还在等待回答' }}</span>
-            </p>
-          </div>
-        </article>
-      </TransitionGroup>
+              <time>{{ qa.time }}</time>
+            </header>
+            <div class="qa-body">
+              <p class="qa-question">{{ qa.question }}</p>
+              <p class="qa-answer" :class="{ muted: !qa.answer }">
+                <span
+                  v-if="qa.answer"
+                  class="mini-avatar owner qa-answer-avatar"
+                  :style="avatarStyle(qa.ownerAvatar || boxProfile.avatar)"
+                >
+                  <img
+                    v-if="avatarSrc(qa.ownerAvatar || boxProfile.avatar)"
+                    :src="avatarSrc(qa.ownerAvatar || boxProfile.avatar)"
+                    alt=""
+                  />
+                  <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
+                </span>
+                <span class="qa-answer-text">{{ qa.answer || '还在等待回答' }}</span>
+              </p>
+            </div>
+          </article>
+        </TransitionGroup>
 
-      <van-empty v-if="!qaLoading && publishedQA.length === 0" image="search" description="暂时还没有公开回答" />
-      <div v-if="qaLoading || qaHasMore" class="load-state" aria-live="polite">
-        <van-loading v-if="qaLoading" size="18" />
-        <span>{{ qaLoading ? '加载中' : '继续下滑加载更多' }}</span>
-      </div>
-    </section>
+        <section v-if="pageError" class="classic-error-state" role="status">
+          <span>{{ pageError }}</span>
+        </section>
+        <van-empty v-else-if="!qaLoading && publishedQA.length === 0" image="search" description="暂时还没有公开回答" />
+        <div v-if="shouldShowLoadState()" class="load-state" aria-live="polite">
+          <van-loading v-if="qaLoading" size="18" />
+          <span>{{ qaLoading ? '加载中' : '继续下滑加载更多' }}</span>
+        </div>
+      </section>
+    </van-pull-refresh>
 
     <Transition v-if="showComposer" name="receipt">
       <div v-if="receiptMessage" class="ask-receipt" role="status">
@@ -525,34 +717,49 @@ onBeforeUnmount(() => {
       </button>
     </section>
 
-    <van-popup
-      v-model:show="detailOpen"
-      round
-      closeable
-      class="chat-popup"
-      :style="{ width: 'min(92vw, 430px)', maxHeight: 'min(78vh, 620px)' }"
-    >
-      <article v-if="selectedQA" class="detail-panel chat-detail">
-        <header class="detail-headline">
-          <time>{{ selectedQA.time }}</time>
-        </header>
-        <section class="chat-transcript">
-          <div class="chat-turn question-turn">
-            <span class="mini-avatar" :style="avatarStyle(selectedQA.profile)">
-              <img v-if="avatarSrc(selectedQA.profile)" :src="avatarSrc(selectedQA.profile)" alt="" />
-            </span>
-            <p class="detail-question chat-bubble">{{ selectedQA.question }}</p>
-          </div>
-          <div class="chat-turn answer-turn">
-            <p class="detail-answer chat-bubble">{{ selectedQA.answer }}</p>
-            <span class="mini-avatar owner" :style="avatarStyle(selectedQA.ownerAvatar || boxProfile.avatar)">
-              <img v-if="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" :src="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" alt="" />
-              <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
-            </span>
-          </div>
-        </section>
-      </article>
-    </van-popup>
+    <Transition name="detail-layer">
+      <div v-if="detailOpen" class="detail-layer" role="presentation">
+        <button
+          class="detail-scrim"
+          type="button"
+          aria-label="关闭回复详情"
+          @click="closeDetail"
+        ></button>
+        <article
+          v-if="selectedQA"
+          ref="detailCardRef"
+          class="detail-panel chat-detail"
+          :style="detailOriginStyle"
+          role="dialog"
+          aria-modal="true"
+          aria-label="回复详情"
+          tabindex="-1"
+          @keydown.esc="closeDetail"
+        >
+          <button class="detail-close" type="button" aria-label="关闭回复详情" @click="closeDetail">
+            <i class="ri-close-line" aria-hidden="true"></i>
+          </button>
+          <header class="detail-headline detail-piece" style="--detail-piece-delay: 80ms">
+            <time>{{ selectedQA.time }}</time>
+          </header>
+          <section class="chat-transcript">
+            <div class="chat-turn question-turn detail-piece" style="--detail-piece-delay: 132ms">
+              <span class="mini-avatar" :style="avatarStyle(selectedQA.profile)">
+                <img v-if="avatarSrc(selectedQA.profile)" :src="avatarSrc(selectedQA.profile)" alt="" />
+              </span>
+              <p class="detail-question chat-bubble">{{ selectedQA.question }}</p>
+            </div>
+            <div class="chat-turn answer-turn detail-piece" style="--detail-piece-delay: 188ms">
+              <p class="detail-answer chat-bubble">{{ selectedQA.answer }}</p>
+              <span class="mini-avatar owner" :style="avatarStyle(selectedQA.ownerAvatar || boxProfile.avatar)">
+                <img v-if="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" :src="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" alt="" />
+                <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
+              </span>
+            </div>
+          </section>
+        </article>
+      </div>
+    </Transition>
   </main>
 </template>
 
@@ -578,10 +785,45 @@ onBeforeUnmount(() => {
   animation: none;
 }
 
+.classic-error-state {
+  width: min(100%, 680px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: var(--classic-muted);
+  font-size: 14px;
+}
+
+.classic-error-state span {
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--classic-line);
+  border-radius: 999px;
+  background: var(--classic-surface);
+  overflow-wrap: anywhere;
+}
+
 .ask-head {
   flex: 0 0 auto;
   width: min(100%, 680px);
   margin: 0 auto 12px;
+  transition:
+    opacity 220ms ease,
+    transform 260ms var(--classic-ease),
+    filter 260ms ease;
+}
+
+.ask-head.is-detail-muted,
+.ask-list.is-detail-muted {
+  opacity: 0.42;
+  filter: saturate(0.82);
+  pointer-events: none;
+}
+
+.ask-head.is-detail-muted {
+  transform: translate3d(0, -2px, 0) scale(0.992);
 }
 
 .ask-profile {
@@ -647,14 +889,33 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.ask-list {
+.ask-refresh {
   flex: 1;
   width: min(100%, 680px);
+  min-height: 0;
   margin: 0 auto;
+  overflow: hidden;
+}
+
+.ask-refresh:deep(.van-pull-refresh__track) {
+  height: 100%;
+}
+
+.ask-list {
+  height: 100%;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 2px 0 14px;
   overscroll-behavior: contain;
+  transition:
+    opacity 220ms ease,
+    transform 280ms var(--classic-ease),
+    filter 260ms ease;
+}
+
+.ask-list.is-detail-muted {
+  transform: translate3d(0, 8px, 0) scale(0.988);
 }
 
 .ask-list__inner {
@@ -663,29 +924,39 @@ onBeforeUnmount(() => {
 }
 
 .qa-card {
+  --scroll-y: 0px;
+  --scroll-scale: 1;
+  --scroll-opacity: 1;
+  --scroll-shadow: 0;
   padding: 20px 22px;
   border-color: #ebebea;
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 calc(8px * var(--scroll-shadow)) calc(22px * var(--scroll-shadow)) rgba(15, 23, 42, calc(0.04 * var(--scroll-shadow)));
   cursor: pointer;
+  opacity: var(--scroll-opacity);
+  transform: translate3d(0, var(--scroll-y), 0) scale(var(--scroll-scale));
+  transform-origin: 50% 50%;
   transition:
     border-color 250ms var(--classic-ease),
     box-shadow 300ms ease,
     transform 200ms ease,
     background-color 180ms ease;
-  animation: qa-card-in 280ms var(--classic-spring) both;
-  animation-delay: calc(min(var(--card-index), 6) * 24ms);
+  animation: qa-card-in 340ms cubic-bezier(0.17, 0.9, 0.22, 1.16) backwards;
+  animation-delay: calc(min(var(--card-index), 7) * 48ms);
+  will-change: transform, opacity;
 }
 
 .qa-card:hover {
   border-color: #d8d8d6;
   box-shadow: 0 3px 16px rgba(15, 23, 42, 0.04);
-  transform: translate3d(0, -1px, 0);
+  transform: translate3d(0, calc(var(--scroll-y) - 1px), 0) scale(var(--scroll-scale));
 }
 
 .qa-card:active {
-  transform: translate3d(0, 0, 0) scale(0.99);
+  transform: translate3d(0, var(--scroll-y), 0) scale(calc(var(--scroll-scale) * 0.99));
 }
 
 .qa-card:focus-visible,
@@ -1035,12 +1306,6 @@ time,
   color: var(--classic-green);
 }
 
-.detail-panel {
-  position: relative;
-  padding: 26px 16px calc(18px + env(safe-area-inset-bottom));
-  background: #fff;
-}
-
 .panel-head {
   display: flex;
   align-items: center;
@@ -1182,12 +1447,124 @@ time,
   padding: 11px 12px 30px;
 }
 
+.detail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.detail-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 23, 42, 0.26);
+  backdrop-filter: blur(7px);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.detail-panel {
+  position: relative;
+  z-index: 1;
+  width: min(92vw, 430px);
+  max-height: min(78vh, 620px);
+  max-height: min(78dvh, 620px);
+  padding: 18px 14px 16px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.99)),
+    #fff;
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.2);
+  overflow: hidden;
+  pointer-events: auto;
+  transform-origin: 50% 50%;
+  will-change: transform, opacity, clip-path;
+}
+
+.detail-panel::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 21px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.detail-layer-enter-active,
+.detail-layer-leave-active {
+  transition: opacity 260ms ease;
+}
+
+.detail-layer-enter-from,
+.detail-layer-leave-to {
+  opacity: 0;
+}
+
+.detail-layer-enter-active .detail-scrim,
+.detail-layer-leave-active .detail-scrim {
+  transition:
+    opacity 260ms ease,
+    backdrop-filter 260ms ease;
+}
+
+.detail-layer-enter-from .detail-scrim,
+.detail-layer-leave-to .detail-scrim {
+  opacity: 0;
+  backdrop-filter: blur(0);
+}
+
+.detail-layer-enter-active .detail-panel {
+  animation: detail-panel-open 500ms linear both;
+}
+
+.detail-layer-leave-active .detail-panel {
+  animation: detail-panel-close 240ms linear both;
+}
+
+.detail-layer-enter-active .detail-panel::after {
+  animation: composer-highlight-in 420ms ease-out 60ms both;
+}
+
 .chat-detail {
   display: flex;
   flex-direction: column;
-  max-height: min(78vh, 620px);
-  padding: 18px 14px 16px;
-  overflow: hidden;
+}
+
+.detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--classic-surface-soft);
+  color: var(--classic-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms var(--classic-spring);
+}
+
+.detail-close:active {
+  transform: scale(0.92);
+}
+
+.detail-close:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.48);
+  outline-offset: 3px;
 }
 
 .detail-headline {
@@ -1204,6 +1581,24 @@ time,
   overflow-y: auto;
   padding: 2px 2px calc(2px + env(safe-area-inset-bottom));
   overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.chat-transcript::-webkit-scrollbar {
+  display: none;
+}
+
+.detail-piece {
+  opacity: 1;
+}
+
+.detail-layer-enter-active .detail-piece {
+  animation: detail-piece-in 330ms cubic-bezier(0.17, 0.9, 0.22, 1.16) both;
+  animation-delay: var(--detail-piece-delay, 0ms);
+}
+
+.detail-layer-leave-active .detail-piece {
+  animation: detail-piece-out 150ms ease both;
 }
 
 .chat-detail .chat-turn {
@@ -1246,11 +1641,11 @@ time,
 @keyframes qa-card-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 10px, 0);
+    transform: translate3d(0, calc(var(--scroll-y) + 10px), 0) scale(var(--scroll-scale));
   }
   to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
+    opacity: var(--scroll-opacity);
+    transform: translate3d(0, var(--scroll-y), 0) scale(var(--scroll-scale));
   }
 }
 
@@ -1269,6 +1664,78 @@ time,
   }
   100% {
     transform: scale(1);
+  }
+}
+
+@keyframes detail-panel-open {
+  0% {
+    clip-path: inset(38% 18% 38% 18% round 14px);
+    opacity: 0;
+    transform: translate3d(var(--detail-origin-x, 0), var(--detail-origin-y, 0), 0)
+      scale(var(--detail-origin-scale-x, 0.8), var(--detail-origin-scale-y, 0.42));
+  }
+  28% {
+    clip-path: inset(24% 8% 24% 8% round 16px);
+    opacity: 0.72;
+    transform: translate3d(calc(var(--detail-origin-x, 0) * 0.38), calc(var(--detail-origin-y, 0) * 0.38), 0)
+      scale(0.94, 0.82);
+  }
+  56% {
+    clip-path: inset(4% 0 4% 0 round 22px);
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) scale(1.012);
+  }
+  76% {
+    clip-path: inset(0 0 0 0 round 22px);
+    opacity: 1;
+    transform: translate3d(0, 1px, 0) scale(0.997);
+  }
+  100% {
+    clip-path: inset(0 0 0 0 round 22px);
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes detail-panel-close {
+  0% {
+    clip-path: inset(0 0 0 0 round 22px);
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  46% {
+    clip-path: inset(18% 4% 18% 4% round 18px);
+    opacity: 0.76;
+    transform: translate3d(calc(var(--detail-origin-x, 0) * 0.12), calc(var(--detail-origin-y, 0) * 0.12), 0)
+      scale(0.94, 0.82);
+  }
+  100% {
+    clip-path: inset(42% 20% 42% 20% round 14px);
+    opacity: 0;
+    transform: translate3d(var(--detail-origin-x, 0), var(--detail-origin-y, 0), 0)
+      scale(var(--detail-origin-scale-x, 0.8), var(--detail-origin-scale-y, 0.42));
+  }
+}
+
+@keyframes detail-piece-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 9px, 0) scale(0.985);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(0, -1px, 0) scale(1.004);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes detail-piece-out {
+  to {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0) scale(0.99);
   }
 }
 
@@ -1460,15 +1927,33 @@ time,
 @media (prefers-reduced-motion: reduce) {
   .qa-card {
     animation: none;
+    opacity: 1;
+    transform: none;
   }
 
   .receipt-enter-active,
-  .receipt-leave-active {
+  .receipt-leave-active,
+  .detail-layer-enter-active,
+  .detail-layer-leave-active,
+  .detail-layer-enter-active .detail-scrim,
+  .detail-layer-leave-active .detail-scrim {
     transition: none;
   }
 
   .ask-avatar.is-catching {
     animation: none;
+  }
+
+  .detail-layer-enter-active .detail-panel,
+  .detail-layer-leave-active .detail-panel,
+  .detail-layer-enter-active .detail-panel::after,
+  .detail-layer-enter-active .detail-piece,
+  .detail-layer-leave-active .detail-piece {
+    animation: none;
+  }
+
+  .detail-piece {
+    opacity: 1;
   }
 
   .composer-morph,

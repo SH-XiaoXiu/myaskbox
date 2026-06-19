@@ -380,6 +380,10 @@ watch([homeSection, questionStatusTab], () => {
   selectedQuestion.value = null
   detailOpen.value = false
   answerText.value = ''
+  if (homeSection.value === 'public') {
+    startPolling()
+    return
+  }
   refreshCurrent({ silent: true })
   startPolling()
 })
@@ -417,7 +421,7 @@ onBeforeUnmount(() => {
     </van-nav-bar>
 
     <section class="owner-body">
-      <section v-if="homeSection === 'public'" class="home-section public-section">
+      <section v-show="homeSection === 'public'" class="home-section public-section">
         <ClassicAskBoxPage
           v-if="boxProfile.slug"
           ref="publicContentRef"
@@ -431,7 +435,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section v-else-if="homeSection === 'inbox'" class="home-section inbox-section">
+      <section v-show="homeSection === 'inbox'" class="home-section inbox-section">
         <van-tabs v-model:active="questionStatusIndex" animated swipeable class="owner-tabs">
           <van-tab v-for="tab in questionTabs" :key="tab.id" :title="tab.label" />
         </van-tabs>
@@ -473,7 +477,7 @@ onBeforeUnmount(() => {
         </van-pull-refresh>
       </section>
 
-      <section v-else class="home-section mine-section">
+      <section v-show="homeSection === 'mine'" class="home-section mine-section">
         <button class="mine-identity classic-card classic-press" type="button" @click="openSettings">
           <span class="profile-avatar" :style="avatarStyle(boxProfile.avatar)">
             <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
@@ -686,20 +690,26 @@ onBeforeUnmount(() => {
 }
 
 .owner-body {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: calc(100vh - 46px);
   height: calc(100dvh - 46px);
   overflow: hidden;
-  padding: 12px 14px calc(62px + env(safe-area-inset-bottom));
+  padding: 0;
 }
 
 .home-section {
-  height: 100%;
+  position: absolute;
+  inset: 12px 14px calc(62px + env(safe-area-inset-bottom));
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 0 10px;
   overscroll-behavior: contain;
+}
+
+.public-section {
+  min-height: 0;
 }
 
 .mine-section {
