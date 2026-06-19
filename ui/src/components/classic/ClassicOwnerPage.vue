@@ -40,7 +40,6 @@ const answerText = ref('')
 const answerError = ref('')
 const avatarInputRef = ref(null)
 const settingsOpen = ref(false)
-const avatarMenuOpen = ref(false)
 const refreshing = ref(false)
 const publicContentRef = ref(null)
 const profileDraft = reactive({
@@ -83,10 +82,6 @@ const selectedIsPublished = computed(() => !!selectedQuestion.value?.answer)
 const selectedIsReadOnly = computed(() => questionStatusTab.value === 'dismissed' && selectedQuestion.value)
 const answerCount = computed(() => `${answerText.value.length} / 5000`)
 const canPublish = computed(() => answerText.value.trim().length > 0)
-const avatarMenuActions = [
-  { text: '设置', icon: 'setting-o' },
-  { text: '退出登录', icon: 'revoke' },
-]
 
 async function loadProfile() {
   const p = await getBoxProfile()
@@ -335,17 +330,6 @@ function openSettings() {
   settingsOpen.value = true
 }
 
-function handleAvatarMenuSelect(action) {
-  avatarMenuOpen.value = false
-  if (action.text === '设置') {
-    openSettings()
-    return
-  }
-  if (action.text === '退出登录') {
-    handleLogout()
-  }
-}
-
 async function handleAvatarFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
@@ -423,19 +407,6 @@ onBeforeUnmount(() => {
         <span class="nav-title">{{ boxProfile.displayName || 'AskBox' }}</span>
       </template>
       <template #left>
-        <van-popover
-          v-model:show="avatarMenuOpen"
-          :actions="avatarMenuActions"
-          placement="bottom-start"
-          @select="handleAvatarMenuSelect"
-        >
-          <template #reference>
-            <button class="avatar-button" type="button" aria-label="打开账户菜单" :style="avatarStyle(boxProfile.avatar)">
-              <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
-              <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
-            </button>
-          </template>
-        </van-popover>
         <input ref="avatarInputRef" class="hidden-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="handleAvatarFile" />
       </template>
       <template #right>
@@ -446,26 +417,26 @@ onBeforeUnmount(() => {
     </van-nav-bar>
 
     <section class="owner-body">
-      <van-pull-refresh v-model="refreshing" class="owner-refresh" @refresh="handlePullRefresh">
-        <section v-if="homeSection === 'public'" class="home-section public-section">
-          <ClassicAskBoxPage
-            v-if="boxProfile.slug"
-            ref="publicContentRef"
-            :slug-override="boxProfile.slug"
-            embedded
-            :show-composer="false"
-          />
-          <div v-else class="load-state" aria-live="polite">
-            <van-loading size="18" />
-            <span>加载公开页</span>
-          </div>
-        </section>
+      <section v-if="homeSection === 'public'" class="home-section public-section">
+        <ClassicAskBoxPage
+          v-if="boxProfile.slug"
+          ref="publicContentRef"
+          :slug-override="boxProfile.slug"
+          embedded
+          :show-composer="false"
+        />
+        <div v-else class="load-state" aria-live="polite">
+          <van-loading size="18" />
+          <span>加载公开页</span>
+        </div>
+      </section>
 
-        <section v-else-if="homeSection === 'inbox'" class="home-section inbox-section">
-          <van-tabs v-model:active="questionStatusIndex" animated swipeable class="owner-tabs">
-            <van-tab v-for="tab in questionTabs" :key="tab.id" :title="tab.label" />
-          </van-tabs>
+      <section v-else-if="homeSection === 'inbox'" class="home-section inbox-section">
+        <van-tabs v-model:active="questionStatusIndex" animated swipeable class="owner-tabs">
+          <van-tab v-for="tab in questionTabs" :key="tab.id" :title="tab.label" />
+        </van-tabs>
 
+        <van-pull-refresh v-model="refreshing" class="list-refresh" @refresh="handlePullRefresh">
           <section class="question-list" :aria-label="activeQuestionTab.label" @scroll="handleListScroll">
             <TransitionGroup name="classic-list" tag="div" class="question-list__inner">
               <article
@@ -499,37 +470,80 @@ onBeforeUnmount(() => {
               <span>{{ currentPageState()?.loading ? '加载中' : '继续下滑加载更多' }}</span>
             </div>
           </section>
+        </van-pull-refresh>
+      </section>
+
+      <section v-else class="home-section mine-section">
+        <button class="mine-identity classic-card classic-press" type="button" @click="openSettings">
+          <span class="profile-avatar" :style="avatarStyle(boxProfile.avatar)">
+            <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
+            <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
+          </span>
+          <span class="mine-identity__body">
+            <strong>{{ boxProfile.displayName || 'AskBox' }}</strong>
+            <small>{{ auth.user?.email || auth.user?.username || '箱主账号' }}</small>
+            <em>{{ publicUrl }}</em>
+          </span>
+          <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+        </button>
+
+        <section class="mine-stat-strip" aria-label="提问箱数据">
+          <div>
+            <strong>{{ stats.pendingCount }}</strong>
+            <span>待回答</span>
+          </div>
+          <div>
+            <strong>{{ stats.publishedCount }}</strong>
+            <span>已发布</span>
+          </div>
+          <div>
+            <strong>{{ stats.todayReceivedCount }}</strong>
+            <span>今日收到</span>
+          </div>
         </section>
 
-        <section v-else class="home-section mine-section">
-          <article class="classic-card mine-card">
-            <div class="public-profile">
-              <span class="profile-avatar" :style="avatarStyle(boxProfile.avatar)">
-                <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
-                <i v-else class="ri-user-heart-line" aria-hidden="true"></i>
-              </span>
-              <div>
-                <h1>{{ boxProfile.displayName || 'AskBox' }}</h1>
-                <p>{{ auth.user?.email || auth.user?.username || '箱主账号' }}</p>
-              </div>
-            </div>
-            <div class="mine-actions">
-              <button type="button" @click="openSettings">
-                <i class="ri-settings-3-line" aria-hidden="true"></i>
-                <span>箱子设置</span>
-              </button>
-              <button type="button" @click="router.push('/password')">
-                <i class="ri-lock-password-line" aria-hidden="true"></i>
-                <span>修改密码</span>
-              </button>
-              <button type="button" @click="handleLogout">
-                <i class="ri-logout-box-r-line" aria-hidden="true"></i>
-                <span>退出登录</span>
-              </button>
-            </div>
-          </article>
+        <section class="mine-group" aria-label="公开资料">
+          <header>公开资料</header>
+          <button class="mine-row" type="button" @click="openSettings">
+            <span class="mine-row__icon"><i class="ri-id-card-line" aria-hidden="true"></i></span>
+            <span class="mine-row__text">
+              <strong>资料与外观</strong>
+              <small>名称、简介、头像、背景</small>
+            </span>
+            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+          </button>
+          <button class="mine-row" type="button" @click="copyPublicUrl">
+            <span class="mine-row__icon"><i class="ri-links-line" aria-hidden="true"></i></span>
+            <span class="mine-row__text">
+              <strong>复制公开链接</strong>
+              <small>{{ publicUrl }}</small>
+            </span>
+            <i class="ri-file-copy-line" aria-hidden="true"></i>
+          </button>
         </section>
-      </van-pull-refresh>
+
+        <section class="mine-group" aria-label="账号安全">
+          <header>账号安全</header>
+          <button class="mine-row" type="button" @click="router.push('/password')">
+            <span class="mine-row__icon"><i class="ri-lock-password-line" aria-hidden="true"></i></span>
+            <span class="mine-row__text">
+              <strong>修改密码</strong>
+              <small>更新登录凭证</small>
+            </span>
+            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+          </button>
+        </section>
+
+        <section class="mine-group danger-group" aria-label="账户操作">
+          <button class="mine-row danger-row" type="button" @click="handleLogout">
+            <span class="mine-row__icon"><i class="ri-logout-box-r-line" aria-hidden="true"></i></span>
+            <span class="mine-row__text">
+              <strong>退出登录</strong>
+              <small>离开当前账号</small>
+            </span>
+          </button>
+        </section>
+      </section>
 
       <van-tabbar v-model="homeSection" class="owner-tabbar" fixed safe-area-inset-bottom>
         <van-tabbar-item v-for="section in homeSections" :key="section.id" :name="section.id">
@@ -544,7 +558,7 @@ onBeforeUnmount(() => {
     <van-popup v-model:show="settingsOpen" round position="bottom" :style="{ maxHeight: '88vh' }">
       <section class="settings-sheet">
         <header class="sheet-head">
-          <h2>箱子设置</h2>
+          <h2>公开资料</h2>
           <button class="nav-icon" type="button" aria-label="关闭设置" @click="settingsOpen = false">
             <i class="ri-close-line" aria-hidden="true"></i>
           </button>
@@ -638,7 +652,6 @@ onBeforeUnmount(() => {
   font-weight: 720;
 }
 
-.avatar-button,
 .nav-icon {
   display: grid;
   place-items: center;
@@ -647,15 +660,6 @@ onBeforeUnmount(() => {
   font: inherit;
 }
 
-.avatar-button {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  overflow: hidden;
-  color: var(--classic-primary);
-}
-
-.avatar-button img,
 .profile-avatar img,
 .avatar-edit img,
 .mini-avatar img {
@@ -690,16 +694,6 @@ onBeforeUnmount(() => {
   padding: 12px 14px calc(62px + env(safe-area-inset-bottom));
 }
 
-.owner-refresh {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.owner-refresh:deep(.van-pull-refresh__track) {
-  height: 100%;
-}
-
 .home-section {
   height: 100%;
   overflow-x: hidden;
@@ -711,83 +705,26 @@ onBeforeUnmount(() => {
 .mine-section {
   display: grid;
   align-content: start;
-  gap: 12px;
-}
-
-.metric {
-  width: 100%;
-  padding: 10px 0;
-}
-
-.metric.compact {
-  min-width: 0;
-  padding: 0;
-}
-
-.metric span,
-.metric strong {
-  display: block;
-}
-
-.metric span {
-  color: var(--classic-muted);
-  font-size: 12px;
-}
-
-.metric strong {
-  margin-top: 4px;
-  color: var(--classic-text);
-  font-size: 22px;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mine-card {
-  padding: 16px;
-}
-
-.public-profile {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
+  gap: 14px;
 }
 
 .profile-avatar {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 58px;
+  height: 58px;
   flex: 0 0 auto;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 16px;
   background-position: center;
   background-size: cover;
   color: var(--classic-primary);
-  font-size: 22px;
+  font-size: 24px;
+  box-shadow: 0 8px 20px rgba(31, 41, 55, 0.08);
 }
 
-.public-profile h1 {
-  margin: 0;
-  color: var(--classic-text);
-  font-size: 20px;
-  line-height: 1.25;
-}
-
-.public-profile p {
-  display: -webkit-box;
-  margin: 4px 0 0;
-  overflow: hidden;
-  color: var(--classic-muted);
-  font-size: 13px;
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.mine-actions button,
+.mine-identity,
+.mine-row,
 .outline-pill,
 .primary-pill {
   display: inline-flex;
@@ -797,6 +734,171 @@ onBeforeUnmount(() => {
   background: transparent;
   color: inherit;
   font: inherit;
+}
+
+.mine-identity {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 13px;
+  width: 100%;
+  min-height: 92px;
+  padding: 16px;
+  text-align: left;
+}
+
+.mine-identity > i {
+  flex: 0 0 auto;
+  color: var(--classic-faint);
+  font-size: 22px;
+}
+
+.mine-identity__body,
+.mine-row__text {
+  display: grid;
+  min-width: 0;
+}
+
+.mine-identity__body {
+  flex: 1;
+  gap: 3px;
+}
+
+.mine-identity__body strong {
+  overflow: hidden;
+  color: var(--classic-text);
+  font-size: 20px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-identity__body small,
+.mine-identity__body em,
+.mine-row__text small {
+  overflow: hidden;
+  color: var(--classic-muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--classic-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.mine-stat-strip div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 6px;
+  text-align: center;
+}
+
+.mine-stat-strip div + div {
+  border-left: 1px solid rgba(228, 231, 236, 0.72);
+}
+
+.mine-stat-strip strong {
+  overflow: hidden;
+  color: var(--classic-text);
+  font-size: 20px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-stat-strip span {
+  color: var(--classic-muted);
+  font-size: 12px;
+}
+
+.mine-group {
+  overflow: hidden;
+  border: 1px solid var(--classic-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.mine-group header {
+  padding: 12px 14px 5px;
+  color: var(--classic-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mine-row {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 11px;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 12px;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    transform 180ms var(--classic-spring);
+}
+
+.mine-row + .mine-row {
+  border-top: 1px solid rgba(228, 231, 236, 0.76);
+}
+
+.mine-row:active {
+  background: var(--classic-surface-soft);
+  transform: scale(0.992);
+}
+
+.mine-row > i {
+  flex: 0 0 auto;
+  color: var(--classic-faint);
+  font-size: 20px;
+}
+
+.mine-row__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--classic-surface-soft);
+  color: var(--classic-primary);
+  font-size: 17px;
+}
+
+.mine-row__text {
+  flex: 1;
+  gap: 2px;
+}
+
+.mine-row__text strong {
+  overflow: hidden;
+  color: var(--classic-text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.danger-group {
+  margin-top: 2px;
+}
+
+.danger-row .mine-row__icon {
+  background: rgba(240, 68, 56, 0.08);
+  color: var(--classic-red);
+}
+
+.danger-row .mine-row__text strong {
+  color: var(--classic-red);
 }
 
 .owner-tabs {
@@ -811,8 +913,18 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
-.question-list {
+.list-refresh {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.list-refresh:deep(.van-pull-refresh__track) {
+  height: 100%;
+}
+
+.question-list {
+  height: 100%;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -886,28 +998,6 @@ time {
   padding: 18px 0;
   color: var(--classic-muted);
   font-size: 13px;
-}
-
-.mine-actions {
-  display: grid;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.mine-actions button {
-  justify-content: flex-start;
-  gap: 10px;
-  min-height: 46px;
-  padding: 0 12px;
-  border: 1px solid var(--classic-line);
-  border-radius: 10px;
-  color: var(--classic-text);
-  font-size: 14px;
-}
-
-.mine-actions i {
-  color: var(--classic-primary);
-  font-size: 18px;
 }
 
 .owner-tabbar {
