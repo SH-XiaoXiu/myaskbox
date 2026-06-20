@@ -633,6 +633,8 @@ watch(topicStatusTab, (status) => {
 .time-block {
   display: grid;
   gap: 9px;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--classic-line);
   border-radius: 12px;
   padding: 12px;
@@ -657,16 +659,33 @@ watch(topicStatusTab, (status) => {
 }
 
 .time-block input {
+  box-sizing: border-box;
+  display: block;
   min-width: 0;
+  max-width: 100%;
   min-height: 40px;
   width: 100%;
   border: 1px solid var(--classic-line);
   border-radius: 10px;
   padding: 0 10px;
+  -webkit-appearance: none;
+  appearance: none;
   background: #fff;
   color: var(--classic-text);
   font: inherit;
   font-size: 14px;
+  line-height: 40px;
+}
+
+.time-block input::-webkit-date-and-time-value {
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+
+.time-block input::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin-left: 4px;
 }
 
 @keyframes topic-composer-shell-open {
