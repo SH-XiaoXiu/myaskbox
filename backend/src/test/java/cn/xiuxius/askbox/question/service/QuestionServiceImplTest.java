@@ -28,6 +28,7 @@ import cn.xiuxius.askbox.attachment.view.AttachmentView;
 import cn.xiuxius.askbox.boxuser.repository.BoxUserRepository;
 import cn.xiuxius.askbox.boxuser.service.BoxUserService;
 import cn.xiuxius.askbox.common.PageResult;
+import cn.xiuxius.askbox.like.service.LikeService;
 import cn.xiuxius.askbox.question.entity.QuestionEntity;
 import cn.xiuxius.askbox.question.enums.QuestionStatus;
 import cn.xiuxius.askbox.question.repository.QuestionRepository;
@@ -63,6 +64,9 @@ class QuestionServiceImplTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private LikeService likeService;
+
     @InjectMocks
     private QuestionServiceImpl service;
 
@@ -87,6 +91,7 @@ class QuestionServiceImplTest {
                 "avatar.svg",
                 "image/svg+xml",
                 328L,
+                "etag-328",
                 "#e94f64",
                 1,
                 true);
@@ -124,6 +129,7 @@ class QuestionServiceImplTest {
                 "avatar.svg",
                 "image/svg+xml",
                 328L,
+                "etag-328",
                 "#e94f64",
                 1,
                 true);

@@ -11,7 +11,8 @@ public record ObjectStorageProperties(
         String bucket,
         String region,
         AccessMode accessMode,
-        int presignTtlSeconds) {
+        int presignTtlSeconds,
+        int assetCacheMaxAgeSeconds) {
 
     public ObjectStorageProperties {
         if (bucket == null || bucket.isBlank()) {
@@ -22,6 +23,9 @@ public record ObjectStorageProperties(
         }
         if (presignTtlSeconds <= 0) {
             presignTtlSeconds = 600;
+        }
+        if (assetCacheMaxAgeSeconds <= 0) {
+            assetCacheMaxAgeSeconds = 31_536_000;
         }
     }
 

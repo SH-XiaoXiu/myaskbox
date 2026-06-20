@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -80,16 +81,19 @@ public class MinioObjectStorageService implements ObjectStorageService {
             AttachmentUsageType usageType, String fileName, String mimeType, long sizeBytes, Long userId) {
         validateDeclaredUpload(usageType, mimeType, sizeBytes);
         String objectKey = objectKey(usageType, fileName, userId);
+        String cacheControl = cacheControlHeaderValue();
         OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(properties.presignTtlSeconds());
         try {
             PostPolicy policy = new PostPolicy(
                     properties.bucket(), ZonedDateTime.now(ZoneOffset.UTC).plusSeconds(properties.presignTtlSeconds()));
             policy.addEqualsCondition("key", objectKey);
             policy.addEqualsCondition("Content-Type", mimeType);
+            policy.addEqualsCondition("Cache-Control", cacheControl);
             policy.addContentLengthRangeCondition(1, ImagePayloadInspector.maxBytes(usageType));
             Map<String, String> formData = new HashMap<>(client.getPresignedPostFormData(policy));
             formData.put("key", objectKey);
             formData.put("Content-Type", mimeType);
+            formData.put("Cache-Control", cacheControl);
             return new UploadPresignView(objectKey, bucketUrl(), formData, expiresAt);
         } catch (Exception ex) {
             throw new BizException(ErrorCodes.INTERNAL_ERROR, "生成上传签名失败");
@@ -115,36 +119,64 @@ public class MinioObjectStorageService implements ObjectStorageService {
     public void putObject(String objectKey, byte[] bytes, String mimeType) {
         assertObjectKey(objectKey);
         try {
-            client.putObject(
-                    PutObjectArgs.builder().bucket(properties.bucket()).object(objectKey).contentType(mimeType).stream(
-                                    new ByteArrayInputStream(bytes), (long) bytes.length, -1L)
-                            .build());
+            client.putObject(PutObjectArgs.builder()
+                    .bucket(properties.bucket())
+                    .object(objectKey)
+                    .contentType(mimeType)
+                    .headers(Map.of(HttpHeaders.CACHE_CONTROL, cacheControlHeaderValue()))
+                    .stream(new ByteArrayInputStream(bytes), (long) bytes.length, -1L)
+                    .build());
         } catch (Exception ex) {
             throw new BizException(ErrorCodes.INTERNAL_ERROR, "上传对象失败");
         }
     }
 
     @Override
-    public ResponseEntity<?> assetResponse(String objectKey) {
+    public ResponseEntity<?> assetResponse(String objectKey, String mimeType, Long sizeBytes, String sha256) {
         assertObjectKey(objectKey);
+        CacheControl cacheControl = assetCacheControl();
         if (properties.accessMode() == ObjectStorageProperties.AccessMode.REDIRECT) {
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(objectUrl(objectKey)))
-                    .cacheControl(CacheControl.noCache())
+                    .cacheControl(cacheControl)
                     .build();
         }
         try (InputStreamHolder holder = getObject(objectKey)) {
             byte[] bytes = StreamUtils.copyToByteArray(holder.stream());
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_TYPE, holder.contentType())
-                    .cacheControl(CacheControl.noCache())
-                    .body(bytes);
+            ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, mimeTypeOrDefault(mimeType, holder.contentType()))
+                    .header("X-Content-Type-Options", "nosniff")
+                    .cacheControl(cacheControl);
+            if (sizeBytes != null && sizeBytes > 0) {
+                response.contentLength(sizeBytes);
+            }
+            if (sha256 != null && !sha256.isBlank()) {
+                response.eTag("\"" + sha256 + "\"");
+            }
+            return response.body(bytes);
         } catch (Exception ex) {
             throw new BizException(ErrorCodes.RESOURCE_NOT_FOUND, "图片不存在");
         }
     }
 
-    private InputStreamHolder getObject(String objectKey) throws Exception {
+    private CacheControl assetCacheControl() {
+        return CacheControl.maxAge(Duration.ofSeconds(properties.assetCacheMaxAgeSeconds()))
+                .cachePublic()
+                .immutable();
+    }
+
+    private String cacheControlHeaderValue() {
+        return "public, max-age=%d, immutable".formatted(properties.assetCacheMaxAgeSeconds());
+    }
+
+    private String mimeTypeOrDefault(String declaredMimeType, String fallbackMimeType) {
+        if (declaredMimeType != null && !declaredMimeType.isBlank()) {
+            return declaredMimeType;
+        }
+        return fallbackMimeType;
+    }
+
+    InputStreamHolder getObject(String objectKey) throws Exception {
         var object = client.getObject(GetObjectArgs.builder()
                 .bucket(properties.bucket())
                 .object(objectKey)
@@ -243,7 +275,7 @@ public class MinioObjectStorageService implements ObjectStorageService {
         return value;
     }
 
-    private record InputStreamHolder(io.minio.GetObjectResponse stream, String contentType) implements AutoCloseable {
+    record InputStreamHolder(java.io.InputStream stream, String contentType) implements AutoCloseable {
         InputStreamHolder {
             if (contentType == null || contentType.isBlank()) {
                 contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;

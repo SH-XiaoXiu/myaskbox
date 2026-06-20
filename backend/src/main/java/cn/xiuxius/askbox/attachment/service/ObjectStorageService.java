@@ -14,7 +14,7 @@ public interface ObjectStorageService {
 
     void putObject(String objectKey, byte[] bytes, String mimeType);
 
-    ResponseEntity<?> assetResponse(String objectKey);
+    ResponseEntity<?> assetResponse(String objectKey, String mimeType, Long sizeBytes, String sha256);
 
     record StoredObject(String objectKey, String mimeType, Long sizeBytes, String sha256) {}
 }

@@ -19,6 +19,7 @@ public final class AttachmentAssembler {
                 entity.getObjectKey(),
                 entity.getMimeType(),
                 entity.getSizeBytes(),
+                entity.getSha256(),
                 entity.getBg(),
                 entity.getSortOrder(),
                 entity.getIsActive());

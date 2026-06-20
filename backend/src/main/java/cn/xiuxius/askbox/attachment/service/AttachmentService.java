@@ -31,6 +31,8 @@ public interface AttachmentService {
 
     AttachmentView getById(Long id);
 
+    AttachmentView getByObjectKey(String objectKey);
+
     boolean existsByObjectKey(String objectKey);
 
     void delete(Long id);

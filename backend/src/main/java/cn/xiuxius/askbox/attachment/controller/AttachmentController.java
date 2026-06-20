@@ -51,9 +51,15 @@ public class AttachmentController {
     @Operation(summary = "读取附件图片", description = "根据对象 key 返回图片重定向或代理流。")
     public ResponseEntity<?> asset(@PathVariable String objectKey) {
         String normalized = objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
-        if (!attachmentService.existsByObjectKey(normalized)) {
-            throw new BizException(ErrorCodes.RESOURCE_NOT_FOUND, "图片不存在");
+        try {
+            AttachmentView attachment = attachmentService.getByObjectKey(normalized);
+            return objectStorageService.assetResponse(
+                    normalized, attachment.mimeType(), attachment.sizeBytes(), attachment.sha256());
+        } catch (BizException ex) {
+            if (ex.getErrorCode() == ErrorCodes.ATTACHMENT_NOT_FOUND) {
+                throw new BizException(ErrorCodes.RESOURCE_NOT_FOUND, "图片不存在");
+            }
+            throw ex;
         }
-        return objectStorageService.assetResponse(normalized);
     }
 }

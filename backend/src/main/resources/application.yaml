@@ -86,3 +86,9 @@ askbox.object-storage:
   region: ${MINIO_REGION:us-east-1}
   access-mode: ${MINIO_ACCESS_MODE:REDIRECT}
   presign-ttl-seconds: ${MINIO_PRESIGN_TTL_SECONDS:600}
+  asset-cache-max-age-seconds: ${MINIO_ASSET_CACHE_MAX_AGE_SECONDS:31536000}
+
+askbox.likes:
+  cache-ttl-seconds: ${LIKE_CACHE_TTL_SECONDS:1800}
+  sync-interval-ms: ${LIKE_SYNC_INTERVAL_MS:5000}
+  sync-batch-size: ${LIKE_SYNC_BATCH_SIZE:200}

@@ -11,6 +11,7 @@ public record AttachmentView(
         String objectKey,
         String mimeType,
         Long sizeBytes,
+        String sha256,
         String bg,
         Integer sortOrder,
         Boolean isActive) {}

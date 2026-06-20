@@ -108,6 +108,13 @@ public class AttachmentServiceImpl implements AttachmentService {
     }
 
     @Override
+    public AttachmentView getByObjectKey(String objectKey) {
+        AttachmentEntity entity = attachmentRepository.findByObjectKey(objectKey);
+        if (entity == null) throw new BizException(ErrorCodes.ATTACHMENT_NOT_FOUND);
+        return AttachmentAssembler.toView(entity);
+    }
+
+    @Override
     public boolean existsByObjectKey(String objectKey) {
         return objectKey != null && attachmentRepository.findByObjectKey(objectKey) != null;
     }
