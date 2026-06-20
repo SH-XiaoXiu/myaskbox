@@ -127,6 +127,15 @@ const selectedTopic = computed(() =>
 )
 const selectedTopicDescription = computed(() => selectedTopic.value?.description?.trim() || '')
 const showTopicPlaceholder = computed(() => selectedTopic.value && content.value.trim().length === 0)
+const selectedQATopicDescription = computed(() => {
+  const topic = selectedQA.value?.topic
+  if (!topic) return ''
+  return (
+    topic.description?.trim?.() ||
+    publicTopics.value.find((item) => item.code === topic.code)?.description?.trim?.() ||
+    ''
+  )
+})
 
 function toAvatarOption(a) {
   return { ...a }
@@ -899,8 +908,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="composer-field-wrap composer-piece" style="--piece-delay: 124ms">
-          <div v-if="topicNotice || publicTopics.length" class="composer-topic-area">
-            <p v-if="topicNotice" class="topic-notice">{{ topicNotice }}</p>
+          <div v-if="publicTopics.length" class="composer-topic-area">
             <div v-if="publicTopics.length" class="composer-topic-tags" aria-label="选择参与话题">
               <button
                 class="composer-topic-tag"
@@ -989,7 +997,10 @@ onBeforeUnmount(() => {
             </button>
             <header class="detail-headline detail-piece" style="--detail-piece-delay: 80ms">
               <time>{{ selectedQA.time }}</time>
-              <span v-if="selectedQA.topic" class="topic-badge detail-topic">{{ selectedQA.topic.title }}</span>
+              <div v-if="selectedQA.topic" class="detail-topic-block">
+                <span class="topic-badge detail-topic">{{ selectedQA.topic.title }}</span>
+                <p v-if="selectedQATopicDescription">{{ selectedQATopicDescription }}</p>
+              </div>
             </header>
             <section class="chat-transcript">
               <div class="chat-turn question-turn detail-piece" style="--detail-piece-delay: 132ms">
@@ -2035,9 +2046,44 @@ time,
   padding-right: 28px;
 }
 
+.topic-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 9px;
+  overflow: hidden;
+  background: rgba(47, 111, 237, 0.08);
+  color: var(--classic-primary);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-topic-block {
+  display: grid;
+  gap: 6px;
+  max-width: 100%;
+}
+
 .detail-topic {
-  margin-top: 8px;
-  margin-bottom: 0;
+  justify-self: start;
+  margin: 0;
+}
+
+.detail-topic-block p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--classic-muted);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .chat-transcript {
