@@ -6,10 +6,14 @@ import {
   getAnonymousAvatars,
   getPublicBoxProfile,
   getPublishedQA,
+  getPublicTopics,
+  resolvePublicTopic,
   submitQuestion,
 } from '@/api/public'
 import { formatTime } from '@/utils'
 import { assetSrc } from '@/utils/assets'
+import ClassicQuestionList from '@/components/classic/ClassicQuestionList.vue'
+import ClassicTopicIsland from '@/components/classic/ClassicTopicIsland.vue'
 
 const route = useRoute()
 const props = defineProps({
@@ -36,6 +40,10 @@ const slug = computed(() => props.slugOverride || routeSlug.value)
 
 const boxProfile = ref({ slug: '', displayName: '', ownerDisplayName: '', description: '', avatar: null })
 const avatarList = ref([])
+const publicTopics = ref([])
+const selectedTopicCode = ref('')
+const filterTopicCode = ref('')
+const topicNotice = ref('')
 const selectedAvatar = ref(null)
 const publishedQA = ref([])
 const qaTotal = ref(0)
@@ -44,6 +52,11 @@ const boxMissing = ref(false)
 const qaLoading = ref(false)
 const refreshing = ref(false)
 const qaRefreshing = ref(false)
+const qaFilterLoading = ref(false)
+const qaFilterEntering = ref(false)
+const qaFilterExiting = ref(false)
+const qaListMinHeight = ref('')
+const qaTransitionName = computed(() => (qaFilterExiting.value || qaFilterEntering.value ? 'classic-filter-list' : 'classic-list'))
 const qaPage = ref(1)
 const qaHasMore = ref(false)
 const composerOpen = ref(false)
@@ -70,6 +83,7 @@ let qaSettleFrame = 0
 let detailFocusTimer = 0
 let activeFlyer = null
 let loadRequestToken = 0
+let filterTransitionToken = 0
 let avatarProgrammaticScroll = false
 const qaMotionState = {
   lastScrollTop: 0,
@@ -101,6 +115,15 @@ const selectedAvatarIndex = computed(() => {
   const index = avatarList.value.findIndex((avatar) => avatar.id === selectedAvatar.value?.id)
   return index >= 0 ? index : 0
 })
+const activeSubmitTopicCode = computed(() => {
+  const code = selectedTopicCode.value
+  return publicTopics.value.some((topic) => topic.code === code && topic.available) ? code : ''
+})
+const selectedTopic = computed(() =>
+  publicTopics.value.find((topic) => topic.code === selectedTopicCode.value) || null,
+)
+const selectedTopicDescription = computed(() => selectedTopic.value?.description?.trim() || '')
+const showTopicPlaceholder = computed(() => selectedTopic.value && content.value.trim().length === 0)
 
 function toAvatarOption(a) {
   return { ...a }
@@ -150,6 +173,112 @@ async function loadAvatars(token = loadRequestToken) {
     console.error('Failed to load avatars', err)
     throw err
   }
+}
+
+async function loadTopics(token = loadRequestToken) {
+  try {
+    const list = await getPublicTopics(slug.value)
+    if (token !== loadRequestToken) return
+    publicTopics.value = list || []
+  } catch (err) {
+    if (token !== loadRequestToken) return
+    publicTopics.value = []
+    console.error('Failed to load topics', err)
+  }
+}
+
+async function resolveInitialTopic(token = loadRequestToken) {
+  const code = typeof route.query.topic === 'string' ? route.query.topic : ''
+  topicNotice.value = ''
+  if (!code) {
+    selectedTopicCode.value = ''
+    return
+  }
+  try {
+    const topic = await resolvePublicTopic(slug.value, code)
+    if (token !== loadRequestToken) return
+    if (topic.available) {
+      if (!publicTopics.value.some((item) => item.code === topic.code)) {
+        publicTopics.value = [topic, ...publicTopics.value]
+      }
+      selectedTopicCode.value = topic.code
+      return
+    }
+    selectedTopicCode.value = ''
+    topicNotice.value = '话题已结束了哦，下次早点来吧'
+    showToast(topicNotice.value)
+  } catch (err) {
+    if (token !== loadRequestToken) return
+    selectedTopicCode.value = ''
+    topicNotice.value = '话题已结束了哦，下次早点来吧'
+    showToast(topicNotice.value)
+    console.error('Failed to resolve topic', err)
+  }
+}
+
+function selectTopic(code) {
+  selectedTopicCode.value = code
+}
+
+async function selectFilterTopic(code) {
+  const token = ++filterTransitionToken
+  const requestToken = ++loadRequestToken
+  qaLoading.value = false
+  qaFilterLoading.value = true
+  const previousItems = publishedQA.value
+  filterTopicCode.value = code
+  qaTotal.value = 0
+  qaPage.value = 1
+  qaHasMore.value = false
+  if (previousItems.length && !prefersReducedMotion()) {
+    await runQAFilterExit(token)
+  } else {
+    publishedQA.value = []
+  }
+  if (token !== filterTransitionToken) {
+    qaFilterLoading.value = false
+    qaListMinHeight.value = ''
+    return
+  }
+  listRef.value?.scrollTo?.({ top: 0, behavior: 'auto' })
+  qaFilterEntering.value = !prefersReducedMotion()
+  try {
+    await loadPublishedQA(true, requestToken, { animate: true })
+  } finally {
+    if (token === filterTransitionToken) qaFilterLoading.value = false
+  }
+  if (token === filterTransitionToken && qaFilterEntering.value) {
+    window.setTimeout(() => {
+      if (token === filterTransitionToken) {
+        qaFilterEntering.value = false
+        qaListMinHeight.value = ''
+      }
+    }, 620)
+  } else if (token === filterTransitionToken) {
+    qaListMinHeight.value = ''
+  }
+}
+
+async function runQAFilterExit(token) {
+  const list = listRef.value
+  const listEl = list?.querySelector?.('.classic-animated-list')
+  const inner = list?.querySelector?.('.classic-animated-list__inner')
+  qaListMinHeight.value = listEl ? `${listEl.offsetHeight}px` : ''
+  if (inner) inner.style.minHeight = `${inner.offsetHeight}px`
+  qaFilterExiting.value = true
+  await nextTick()
+  publishedQA.value = []
+  await waitForQALeave()
+  if (token === filterTransitionToken) {
+    qaFilterExiting.value = false
+    if (inner) inner.style.removeProperty('min-height')
+  }
+}
+
+function waitForQALeave() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, prefersReducedMotion() ? 0 : 720)
+  })
 }
 
 function markAvatarProgrammaticScroll(duration = 80) {
@@ -300,12 +429,13 @@ async function loadPublishedQA(reset = false, token = loadRequestToken, { animat
   qaLoading.value = true
   const page = reset ? 1 : qaPage.value
   try {
-    const result = await getPublishedQA(slug.value, page, 10)
+    const result = await getPublishedQA(slug.value, page, 10, filterTopicCode.value)
     if (token !== loadRequestToken) return
     const items = result.records.map((q, index) => ({
       id: q.id,
       profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
+      topic: q.topic,
       question: q.question,
       answer: q.answer,
       ts: q.ts,
@@ -340,10 +470,6 @@ function handleScroll() {
   if (!list || qaLoading.value || !qaHasMore.value) return
   const distance = list.scrollHeight - list.scrollTop - list.clientHeight
   if (distance < 220) loadPublishedQA(false)
-}
-
-function shouldShowLoadState() {
-  return publishedQA.value.length > 0 && (qaLoading.value || qaHasMore.value)
 }
 
 function prefersReducedMotion() {
@@ -491,7 +617,7 @@ async function handleSend() {
   sending.value = true
   try {
     await animatePaperPlane()
-    await submitQuestion(slug.value, selectedAvatar.value.id, text)
+    await submitQuestion(slug.value, selectedAvatar.value.id, text, activeSubmitTopicCode.value)
     content.value = ''
     closeComposer(true)
     showReceipt('已投递，等待回答')
@@ -529,6 +655,10 @@ async function resetAndLoadPublicContent({ preserveList = false, animateList = t
   composerOpen.value = false
   composerTouched.value = false
   content.value = ''
+  publicTopics.value = []
+  selectedTopicCode.value = ''
+  filterTopicCode.value = ''
+  topicNotice.value = ''
   if (!preserveList) {
     publishedQA.value = []
     qaTotal.value = 0
@@ -537,9 +667,11 @@ async function resetAndLoadPublicContent({ preserveList = false, animateList = t
   qaHasMore.value = false
 
   try {
-    const jobs = [loadBoxProfile(token), loadPublishedQA(true, token, { animate: animateList })]
+    const jobs = [loadBoxProfile(token), loadTopics(token)]
     if (props.showComposer) jobs.unshift(loadAvatars(token))
     await Promise.all(jobs)
+    await resolveInitialTopic(token)
+    await loadPublishedQA(true, token, { animate: animateList })
     if (token !== loadRequestToken) return
     await nextTick()
     centerAvatar(selectedAvatarIndex.value, 'auto')
@@ -639,6 +771,12 @@ onBeforeUnmount(() => {
           <p v-if="boxDescription">{{ boxDescription }}</p>
         </div>
       </div>
+      <ClassicTopicIsland
+        v-if="publicTopics.length"
+        :model-value="filterTopicCode"
+        :topics="publicTopics"
+        @change="selectFilterTopic"
+      />
       <p class="ask-meta">{{ qaTotal }} 条公开回复</p>
     </header>
 
@@ -653,56 +791,18 @@ onBeforeUnmount(() => {
         :class="{ 'is-detail-muted': detailOpen }"
         aria-label="公开回复列表"
       >
-        <TransitionGroup :name="qaRefreshing ? '' : 'classic-list'" tag="div" class="ask-list__inner">
-          <article
-            v-for="qa in publishedQA"
-            :key="qa.id"
-            class="classic-card classic-press qa-card"
-            :class="{ 'no-enter-motion': qaRefreshing }"
-            role="button"
-            tabindex="0"
-            :style="{ '--card-index': qa.motionIndex }"
-            @click="openDetail(qa, $event)"
-            @keydown.enter.prevent="openDetail(qa, $event)"
-            @keydown.space.prevent="openDetail(qa, $event)"
-          >
-            <header class="qa-card-head">
-              <span class="qa-identity">
-                <span class="mini-avatar" :style="avatarStyle(qa.profile)">
-                  <img v-if="avatarSrc(qa.profile)" :src="avatarSrc(qa.profile)" alt="" />
-                </span>
-              </span>
-              <time>{{ qa.time }}</time>
-            </header>
-            <div class="qa-body">
-              <p class="qa-question">{{ qa.question }}</p>
-              <p class="qa-answer" :class="{ muted: !qa.answer }">
-                <span
-                  v-if="qa.answer"
-                  class="mini-avatar owner qa-answer-avatar"
-                  :style="avatarStyle(qa.ownerAvatar || boxProfile.avatar)"
-                >
-                  <img
-                    v-if="avatarSrc(qa.ownerAvatar || boxProfile.avatar)"
-                    :src="avatarSrc(qa.ownerAvatar || boxProfile.avatar)"
-                    alt=""
-                  />
-                  <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
-                </span>
-                <span class="qa-answer-text">{{ qa.answer || '还在等待回答' }}</span>
-              </p>
-            </div>
-          </article>
-        </TransitionGroup>
-
-        <section v-if="pageError" class="classic-error-state" role="status">
-          <span>{{ pageError }}</span>
-        </section>
-        <van-empty v-else-if="!qaLoading && publishedQA.length === 0" image="search" description="暂时还没有公开回答" />
-        <div v-if="shouldShowLoadState()" class="load-state" aria-live="polite">
-          <van-loading v-if="qaLoading" size="18" />
-          <span>{{ qaLoading ? '加载中' : '继续下滑加载更多' }}</span>
-        </div>
+        <ClassicQuestionList
+          :questions="publishedQA"
+          :transition-name="qaRefreshing ? '' : qaTransitionName"
+          :list-min-height="qaListMinHeight"
+          :loading="qaLoading || qaFilterLoading"
+          :has-more="qaHasMore"
+          :error="pageError"
+          :box-avatar="boxProfile.avatar"
+          empty-description="暂时还没有公开回答"
+          aria-label="公开回复列表"
+          @open="openDetail"
+        />
       </section>
       </van-pull-refresh>
     </div>
@@ -717,7 +817,7 @@ onBeforeUnmount(() => {
     <section
       v-if="showComposer && !boxMissing"
       class="composer-morph"
-      :class="{ open: composerOpen, touched: composerTouched }"
+      :class="{ open: composerOpen, touched: composerTouched, 'has-topic-tools': publicTopics.length }"
       aria-label="匿名提问输入框"
     >
       <div class="composer-surface" :aria-hidden="!composerOpen" :inert="!composerOpen">
@@ -762,16 +862,49 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="composer-field-wrap composer-piece" style="--piece-delay: 124ms">
-          <van-field
-            v-model="content"
-            class="composer-field"
-            type="textarea"
-            rows="5"
-            maxlength="350"
-            autosize
-            placeholder="写下你的问题"
-          />
-          <p class="composer-count">{{ content.length }} / 350</p>
+          <div v-if="topicNotice || publicTopics.length" class="composer-topic-area">
+            <p v-if="topicNotice" class="topic-notice">{{ topicNotice }}</p>
+            <div v-if="publicTopics.length" class="composer-topic-tags" aria-label="选择参与话题">
+              <button
+                class="composer-topic-tag"
+                :class="{ selected: !selectedTopicCode }"
+                type="button"
+                :aria-pressed="!selectedTopicCode"
+                @click="selectTopic('')"
+              >
+                #无
+              </button>
+              <button
+                v-for="topic in publicTopics"
+                :key="topic.code"
+                class="composer-topic-tag"
+                :class="{ selected: selectedTopicCode === topic.code }"
+                type="button"
+                :aria-pressed="selectedTopicCode === topic.code"
+                @click="selectTopic(topic.code)"
+              >
+                #{{ topic.title }}
+              </button>
+            </div>
+          </div>
+          <section class="composer-input-box" :class="{ 'has-topic-placeholder': showTopicPlaceholder }" aria-label="问题内容">
+            <Transition name="composer-topic-preview">
+              <div v-if="showTopicPlaceholder" class="composer-topic-preview" aria-hidden="true">
+                <strong>参与「{{ selectedTopic.title }}」。</strong>
+                <p v-if="selectedTopicDescription">{{ selectedTopicDescription }}</p>
+              </div>
+            </Transition>
+            <van-field
+              v-model="content"
+              class="composer-field"
+              type="textarea"
+              rows="5"
+              maxlength="350"
+              autosize
+              :placeholder="showTopicPlaceholder ? '' : '写下你的问题'"
+            />
+            <p class="composer-count">{{ content.length }} / 350</p>
+          </section>
         </div>
       </div>
 
@@ -818,6 +951,7 @@ onBeforeUnmount(() => {
           </button>
           <header class="detail-headline detail-piece" style="--detail-piece-delay: 80ms">
             <time>{{ selectedQA.time }}</time>
+            <span v-if="selectedQA.topic" class="topic-badge detail-topic">{{ selectedQA.topic.title }}</span>
           </header>
           <section class="chat-transcript">
             <div class="chat-turn question-turn detail-piece" style="--detail-piece-delay: 132ms">
@@ -915,35 +1049,16 @@ onBeforeUnmount(() => {
   line-height: 1.35;
 }
 
-.classic-error-state {
-  width: min(100%, 680px);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 220px;
-  color: var(--classic-muted);
-  font-size: 14px;
-}
-
-.classic-error-state span {
-  max-width: 100%;
-  padding: 10px 14px;
-  border: 1px solid var(--classic-line);
-  border-radius: 999px;
-  background: var(--classic-surface);
-  overflow-wrap: anywhere;
-}
-
 .ask-head {
   position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
   flex: 0 0 auto;
   width: min(100%, 680px);
   margin: 0 auto 12px;
+  overflow: visible;
   transition:
     opacity 220ms ease,
     transform 260ms var(--classic-ease),
@@ -966,7 +1081,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  flex: 1 1 auto;
+  justify-self: start;
 }
 
 .ask-profile > div {
@@ -1032,8 +1147,8 @@ onBeforeUnmount(() => {
 }
 
 .ask-meta {
-  flex: 0 0 auto;
-  margin: 0 0 3px;
+  justify-self: end;
+  margin: 0;
   color: var(--classic-muted);
   font-size: 12px;
   text-align: right;
@@ -1080,38 +1195,49 @@ onBeforeUnmount(() => {
   transform: translate3d(0, 8px, 0) scale(0.988);
 }
 
-.ask-list__inner {
-  display: grid;
-  gap: 10px;
+.composer-topic-tags {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 1px 2px 4px;
+  scrollbar-width: none;
 }
 
-.qa-card {
-  --scroll-y: 0px;
-  --scroll-scale: 1;
-  --scroll-opacity: 1;
-  --scroll-shadow: 0;
-  padding: 20px 22px;
-  border-color: #ebebea;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.03),
-    0 calc(8px * var(--scroll-shadow)) calc(22px * var(--scroll-shadow)) rgba(15, 23, 42, calc(0.04 * var(--scroll-shadow)));
-  cursor: pointer;
-  opacity: var(--scroll-opacity);
-  transform: translate3d(0, var(--scroll-y), 0) scale(var(--scroll-scale));
-  transform-origin: 50% 50%;
+.composer-topic-tags::-webkit-scrollbar {
+  display: none;
+}
+
+.composer-topic-tag {
+  flex: 0 0 auto;
+  max-width: 180px;
+  min-height: 30px;
+  border: 1px solid rgba(47, 111, 237, 0.14);
+  border-radius: 15px;
+  padding: 0 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--classic-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition:
-    border-color 250ms var(--classic-ease),
-    box-shadow 300ms ease,
-    transform 200ms ease,
-    background-color 180ms ease;
-  animation: qa-card-in 340ms cubic-bezier(0.17, 0.9, 0.22, 1.16) backwards;
-  animation-delay: calc(min(var(--card-index), 7) * 48ms);
-  will-change: transform, opacity;
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms var(--classic-ease);
 }
 
-.classic-ask.has-background .qa-card {
+.composer-topic-tag.selected {
+  border-color: rgba(47, 111, 237, 0.28);
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--classic-primary);
+  transform: translateY(-1px) scale(1.02);
+}
+
+.classic-ask.has-background :deep(.qa-card) {
   border-color: rgba(255, 255, 255, 0.58);
   background: rgba(255, 255, 255, 0.72);
   box-shadow:
@@ -1119,27 +1245,12 @@ onBeforeUnmount(() => {
     0 calc(8px * var(--scroll-shadow)) calc(22px * var(--scroll-shadow)) rgba(15, 23, 42, calc(0.06 * var(--scroll-shadow)));
 }
 
-.qa-card.no-enter-motion {
-  animation: none;
-}
-
-.qa-card:hover {
-  border-color: #d8d8d6;
-  box-shadow: 0 3px 16px rgba(15, 23, 42, 0.04);
-  transform: translate3d(0, calc(var(--scroll-y) - 1px), 0) scale(var(--scroll-scale));
-}
-
-.classic-ask.has-background .qa-card:hover {
+.classic-ask.has-background :deep(.qa-card:hover) {
   border-color: rgba(255, 255, 255, 0.76);
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 3px 16px rgba(15, 23, 42, 0.08);
 }
 
-.qa-card:active {
-  transform: translate3d(0, var(--scroll-y), 0) scale(calc(var(--scroll-scale) * 0.99));
-}
-
-.qa-card:focus-visible,
 .avatar-option:focus-visible,
 .composer-action-button:focus-visible,
 .composer-close:focus-visible,
@@ -1148,8 +1259,6 @@ onBeforeUnmount(() => {
   outline-offset: 3px;
 }
 
-.qa-card-head,
-.qa-identity,
 .owner-line,
 .detail-author {
   display: flex;
@@ -1157,19 +1266,9 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.qa-card-head {
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.qa-identity {
-  min-width: 0;
-}
-
 .mini-avatar {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
 }
 
@@ -1184,85 +1283,13 @@ time,
   font-size: 12px;
 }
 
-.qa-card-head time {
-  flex: 0 0 auto;
-  padding-left: 10px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-}
-
-.qa-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.qa-question {
-  margin: 0;
-  color: var(--classic-text);
-  font-size: 15px;
-  font-weight: 480;
-  line-height: 1.7;
-  letter-spacing: 0.005em;
-  overflow-wrap: anywhere;
-}
-
-.qa-answer {
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-  margin: 0 0 0 2px;
-  padding: 0 0 0 14px;
-  overflow: hidden;
-  color: var(--classic-muted);
-  border-left: 1.5px solid #ebebea;
-  font-size: 14px;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  transition: border-color 400ms ease;
-}
-
-.qa-answer-avatar {
-  width: 18px;
-  height: 18px;
-  margin-top: 2px;
-  color: var(--classic-primary);
-  font-size: 11px;
-}
-
-.qa-answer-text {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.qa-card:hover .qa-answer {
-  border-left-color: #c7c5e8;
-}
-
-.qa-answer.muted {
-  color: var(--classic-muted);
-  border-left-color: #ebebea;
-}
-
 .owner-line {
   margin-top: 12px;
 }
 
-.load-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 18px 0;
-  color: var(--classic-muted);
-  font-size: 13px;
-}
-
 .composer-morph {
+  --composer-open-height: 336px;
+  --composer-surface-height: 276px;
   position: fixed;
   left: 50%;
   bottom: calc(18px + env(safe-area-inset-bottom));
@@ -1280,8 +1307,13 @@ time,
 
 .composer-morph.open {
   width: min(calc(100vw - 32px), 520px);
-  height: 336px;
+  height: var(--composer-open-height);
   animation: composer-shell-open 540ms linear both;
+}
+
+.composer-morph.open.has-topic-tools {
+  --composer-open-height: 396px;
+  --composer-surface-height: 336px;
 }
 
 .composer-morph.touched:not(.open) {
@@ -1295,9 +1327,9 @@ time,
   left: 0;
   z-index: 1;
   display: grid;
-  grid-template-rows: 36px 40px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 8px;
-  height: 276px;
+  height: var(--composer-surface-height);
   overflow: hidden;
   padding: 14px;
   border: 1px solid rgba(226, 232, 240, 0.94);
@@ -1444,8 +1476,27 @@ time,
 
 .composer-field-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-width: 0;
   min-height: 0;
+}
+
+.composer-topic-area {
+  display: grid;
+  gap: 8px;
+}
+
+.topic-notice {
+  margin: 0;
+  border: 1px solid rgba(47, 111, 237, 0.14);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: rgba(47, 111, 237, 0.06);
+  color: var(--classic-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .composer-row,
@@ -1593,13 +1644,12 @@ time,
 
 .composer-count {
   position: absolute;
-  right: 13px;
-  bottom: 12px;
+  right: 0;
+  bottom: 2px;
   z-index: 2;
   margin: 0;
-  padding: 2px 6px;
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.88);
+  padding: 2px 0 0 8px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff 16px);
   color: var(--classic-muted);
   font-size: 12px;
   line-height: 1;
@@ -1607,12 +1657,87 @@ time,
   pointer-events: none;
 }
 
+.composer-input-box {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 176px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition:
+    min-height 260ms var(--classic-ease),
+    background-color 220ms ease;
+}
+
+.composer-input-box.has-topic-placeholder {
+  min-height: 204px;
+}
+
+.composer-topic-preview {
+  position: absolute;
+  top: 11px;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.composer-topic-preview strong {
+  display: block;
+  overflow: hidden;
+  color: #9ca3af;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-topic-preview p {
+  display: -webkit-box;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #9ca3af;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.composer-topic-preview-enter-active,
+.composer-topic-preview-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 260ms var(--classic-ease);
+}
+
+.composer-topic-preview-enter-from,
+.composer-topic-preview-leave-to {
+  opacity: 0;
+  transform: translate3d(0, -5px, 0);
+}
+
+.composer-topic-preview-enter-to,
+.composer-topic-preview-leave-from {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
 .composer-field {
   height: 100%;
-  overflow: hidden;
-  border: 1px solid rgba(226, 232, 240, 0.88);
-  border-radius: 14px;
-  background: #f8fafc;
+  overflow-y: auto;
+  border: 0;
+  padding: 11px 0 38px;
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.composer-field::-webkit-scrollbar {
+  display: none;
 }
 
 .composer-field:deep(.van-field__control) {
@@ -1622,9 +1747,16 @@ time,
   line-height: 1.65;
 }
 
-.composer-field:deep(.van-cell) {
+.composer-field:deep(.van-field__body) {
   height: 100%;
-  padding: 11px 12px 30px;
+}
+
+.composer-field:deep(.van-cell__value) {
+  min-height: 100%;
+}
+
+.composer-field:deep(.van-field__control)::placeholder {
+  color: #9ca3af;
 }
 
 .detail-layer {
@@ -1744,15 +1876,25 @@ time,
 }
 
 .detail-headline {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
   flex: 0 0 auto;
   min-height: 20px;
   padding-right: 28px;
 }
 
+.detail-topic {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
 .chat-transcript {
   display: grid;
   gap: 14px;
-  margin-top: 4px;
+  margin-top: 18px;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 2px 2px calc(2px + env(safe-area-inset-bottom));
@@ -1812,17 +1954,6 @@ time,
   background: var(--classic-primary);
   color: #fff;
   border-bottom-right-radius: 3px;
-}
-
-@keyframes qa-card-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, calc(var(--scroll-y) + 10px), 0) scale(var(--scroll-scale));
-  }
-  to {
-    opacity: var(--scroll-opacity);
-    transform: translate3d(0, var(--scroll-y), 0) scale(var(--scroll-scale));
-  }
 }
 
 @keyframes avatar-catch {
@@ -1926,26 +2057,26 @@ time,
   }
   54% {
     width: min(calc(100vw - 24px), 532px);
-    height: 304px;
+    height: calc(var(--composer-open-height) - 32px);
   }
   72% {
     width: min(calc(100vw - 38px), 512px);
-    height: 340px;
+    height: calc(var(--composer-open-height) + 4px);
   }
   88% {
     width: min(calc(100vw - 30px), 522px);
-    height: 334px;
+    height: calc(var(--composer-open-height) - 2px);
   }
   100% {
     width: min(calc(100vw - 32px), 520px);
-    height: 336px;
+    height: var(--composer-open-height);
   }
 }
 
 @keyframes composer-shell-close {
   0% {
     width: min(calc(100vw - 32px), 520px);
-    height: 336px;
+    height: var(--composer-open-height);
   }
   42% {
     width: min(calc(100vw - 74px), 384px);
@@ -2100,13 +2231,19 @@ time,
   transform: translateX(-50%) translateY(8px);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .qa-card {
-    animation: none;
-    opacity: 1;
-    transform: none;
+@media (max-width: 430px) {
+  .ask-head {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
   }
 
+  .ask-meta {
+    align-self: center;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   .receipt-enter-active,
   .receipt-leave-active,
   .detail-layer-enter-active,
@@ -2144,8 +2281,14 @@ time,
   .composer-morph.open .composer-piece,
   .composer-button-glint,
   .composer-button-icon,
-  .composer-button-text {
+  .composer-button-text,
+  .composer-input-box,
+  .composer-topic-preview,
+  .composer-topic-preview-enter-active,
+  .composer-topic-preview-leave-active,
+  .composer-topic-tag {
     animation: none;
+    transition: none;
   }
 }
 </style>

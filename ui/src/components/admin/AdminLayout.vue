@@ -2,22 +2,25 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useLogoutConfirm } from '@/composables/useLogoutConfirm'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { confirmLogout } = useLogoutConfirm()
 
 const tabs = [
   { path: '/admin/dashboard', icon: 'ri-dashboard-3-line', label: '仪表盘' },
   { path: '/admin/users', icon: 'ri-user-settings-line', label: '用户' },
-  { path: '/admin/boxes', icon: 'ri-mail-send-line', label: '提问箱' },
-  { path: '/admin/questions', icon: 'ri-question-answer-line', label: '问题' },
-  { path: '/admin/attachments', icon: 'ri-attachment-2', label: '附件' },
+  { path: '/admin/manage', icon: 'ri-apps-2-line', label: '管理' },
   { path: '/admin/settings', icon: 'ri-settings-3-line', label: '设置' },
-  { path: '/admin/roles', icon: 'ri-shield-keyhole-line', label: '权限' },
 ]
 
 const activeIdx = computed(() => {
+  const managePaths = ['/admin/boxes', '/admin/questions', '/admin/topics', '/admin/attachments', '/admin/roles']
+  if (managePaths.some((path) => route.path.startsWith(path))) {
+    return tabs.findIndex((t) => t.path === '/admin/manage')
+  }
   const idx = tabs.findIndex((t) => route.path.startsWith(t.path))
   return idx >= 0 ? idx : 0
 })
@@ -26,9 +29,8 @@ function onChange(idx) {
   router.replace(tabs[idx].path)
 }
 
-async function handleLogout() {
-  await auth.logout()
-  router.replace('/login')
+function handleLogout() {
+  confirmLogout()
 }
 </script>
 

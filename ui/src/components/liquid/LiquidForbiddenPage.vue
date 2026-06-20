@@ -2,17 +2,18 @@
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import LiquidErrorShell from "@/components/liquid/LiquidErrorShell.vue";
+import { useLogoutConfirm } from "@/composables/useLogoutConfirm";
 
 const router = useRouter();
 const auth = useAuthStore();
+const { confirmLogout } = useLogoutConfirm();
 
 function goLanding() {
   router.replace(auth.landingPath);
 }
 
-async function handleLogout() {
-  await auth.logout();
-  router.replace("/login");
+function handleLogout() {
+  confirmLogout();
 }
 </script>
 

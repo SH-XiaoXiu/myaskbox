@@ -52,6 +52,7 @@ function normalizeValue(item) {
 function groupTitle(code) {
   if (code === 'site') return '站点设置'
   if (code === 'registration') return '注册'
+  if (code === 'topic') return '话题'
   if (code === 'mail') return '邮件'
   return code
 }

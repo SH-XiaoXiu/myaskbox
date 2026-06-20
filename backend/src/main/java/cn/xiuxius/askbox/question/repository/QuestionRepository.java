@@ -41,6 +41,17 @@ public class QuestionRepository {
                         .orderByDesc(QuestionEntity::getCreatedAt));
     }
 
+    public IPage<QuestionEntity> findPublishedByBoxIdAndTopicId(
+            Long boxUserId, Long topicId, IPage<QuestionEntity> page) {
+        return mapper.selectPage(
+                page,
+                new LambdaQueryWrapper<QuestionEntity>()
+                        .eq(QuestionEntity::getBoxUserId, boxUserId)
+                        .eq(QuestionEntity::getTopicId, topicId)
+                        .eq(QuestionEntity::getStatus, QuestionStatus.PUBLISHED)
+                        .orderByDesc(QuestionEntity::getCreatedAt));
+    }
+
     public IPage<QuestionEntity> findPendingByBoxId(Long boxUserId, IPage<QuestionEntity> page) {
         return mapper.selectPage(
                 page,
@@ -72,6 +83,12 @@ public class QuestionRepository {
         return mapper.selectCount(new LambdaQueryWrapper<QuestionEntity>()
                 .eq(QuestionEntity::getBoxUserId, boxUserId)
                 .eq(QuestionEntity::getStatus, status));
+    }
+
+    public long countByBoxUserIdAndTopicId(Long boxUserId, Long topicId) {
+        return mapper.selectCount(new LambdaQueryWrapper<QuestionEntity>()
+                .eq(QuestionEntity::getBoxUserId, boxUserId)
+                .eq(QuestionEntity::getTopicId, topicId));
     }
 
     public long countByBoxUserIdCreatedAtAfter(Long boxUserId, java.time.OffsetDateTime start) {

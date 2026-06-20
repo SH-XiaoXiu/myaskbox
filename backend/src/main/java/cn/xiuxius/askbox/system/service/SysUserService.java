@@ -28,10 +28,10 @@ public interface SysUserService {
     UserView getUserViewById(Long id);
 
     /** 创建用户，返回 BCrypt 加密后的密码哈希。 */
-    SysUserEntity createUser(String email, String rawPassword, String displayName);
+    SysUserEntity createUser(String email, String rawPassword, String displayName, Integer topicActiveLimit);
 
     /** 更新用户基本信息。 */
-    void updateUser(Long id, String displayName, String email);
+    void updateUser(Long id, String displayName, String email, Integer topicActiveLimit);
 
     /** 修改当前用户密码，需验证当前密码。 */
     void changePassword(Long userId, String currentPassword, String newPassword, String confirmPassword);

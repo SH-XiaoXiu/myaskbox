@@ -73,13 +73,13 @@ const showFormSheet = ref(false)
 const formTitle = ref('')
 const isEditing = ref(false)
 const editingUser = ref(null)
-const form = ref({ password: '', displayName: '', email: '' })
+const form = ref({ password: '', displayName: '', email: '', topicActiveLimit: 5 })
 
 function openCreate() {
   isEditing.value = false
   editingUser.value = null
   formTitle.value = '新增用户'
-  form.value = { password: '', displayName: '', email: '' }
+  form.value = { password: '', displayName: '', email: '', topicActiveLimit: 5 }
   showFormSheet.value = true
 }
 
@@ -87,23 +87,34 @@ function openEdit(user) {
   isEditing.value = true
   editingUser.value = user
   formTitle.value = '编辑用户'
-  form.value = { password: '', displayName: user.displayName, email: user.email || user.username }
+  form.value = {
+    password: '',
+    displayName: user.displayName,
+    email: user.email || user.username,
+    topicActiveLimit: user.topicActiveLimit || 5,
+  }
   showFormSheet.value = true
 }
 
 async function submitForm() {
   try {
     if (isEditing.value && editingUser.value) {
-      await updateUser(editingUser.value.id, { displayName: form.value.displayName, email: form.value.email })
+      await updateUser(editingUser.value.id, {
+        displayName: form.value.displayName,
+        email: form.value.email,
+        topicActiveLimit: Number(form.value.topicActiveLimit) || 5,
+      })
       editingUser.value.displayName = form.value.displayName
       editingUser.value.email = form.value.email.trim().toLowerCase()
       editingUser.value.username = editingUser.value.email
+      editingUser.value.topicActiveLimit = Number(form.value.topicActiveLimit) || 5
       showSuccessToast('已更新')
     } else {
       const newUser = await createUser({
         password: form.value.password,
         displayName: form.value.displayName,
         email: form.value.email,
+        topicActiveLimit: Number(form.value.topicActiveLimit) || 5,
       })
       users.value.unshift(newUser)
       showSuccessToast('已创建')
@@ -190,7 +201,7 @@ function openAction(user) {
               </div>
             </template>
             <template #label>
-              {{ user.email || user.username }} · {{ formatTime(new Date(user.createdAt).getTime()) }}
+              {{ user.email || user.username }} · 话题上限 {{ user.topicActiveLimit || 5 }} · {{ formatTime(new Date(user.createdAt).getTime()) }}
             </template>
             <template #value>
               <van-tag :type="user.status === 'ACTIVE' ? 'success' : 'danger'" size="medium">
@@ -221,6 +232,13 @@ function openAction(user) {
         <van-field v-if="!isEditing" v-model="form.password" label="密码" type="password" placeholder="请输入密码" />
         <van-field v-model="form.email" label="邮箱" type="email" autocomplete="email" placeholder="请输入邮箱" />
         <van-field v-model="form.displayName" label="显示名" placeholder="请输入显示名" />
+        <van-field
+          v-model.number="form.topicActiveLimit"
+          label="话题上限"
+          type="number"
+          min="1"
+          placeholder="默认 5"
+        />
         <div class="sheet-form-btn">
           <van-button type="primary" round block @click="submitForm">确定</van-button>
         </div>

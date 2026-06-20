@@ -12,5 +12,6 @@ public record UserView(
         String displayName,
         String email,
         String status,
+        Integer topicActiveLimit,
         List<String> roles,
         OffsetDateTime createdAt) {}

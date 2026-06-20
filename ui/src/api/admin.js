@@ -51,6 +51,15 @@ export const getQuestion = (id) => api.get(`/admin/questions/${id}`)
 /** DELETE /api/admin/questions/{id} */
 export const forceDeleteQuestion = (id) => api.delete(`/admin/questions/${id}`)
 
+// ==================== 话题管理 ====================
+
+/** GET /api/admin/topics */
+export const listTopics = (page = 1, pageSize = 10, params = {}) =>
+  api.get('/admin/topics', { params: { page, pageSize, ...params } })
+
+/** POST /api/admin/topics/{id}/close */
+export const closeAdminTopic = (id) => api.post(`/admin/topics/${id}/close`)
+
 // ==================== 回答管理 ====================
 
 /** DELETE /api/admin/answers/{id} */

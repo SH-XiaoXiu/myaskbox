@@ -82,7 +82,7 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Override
     @Transactional
-    public SysUserEntity createUser(String email, String rawPassword, String displayName) {
+    public SysUserEntity createUser(String email, String rawPassword, String displayName, Integer topicActiveLimit) {
         String normalizedEmail = normalizeEmail(email);
         if (normalizedEmail.isBlank()) {
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱不能为空");
@@ -94,7 +94,8 @@ public class SysUserServiceImpl implements SysUserService {
                 .setPasswordHash(BCrypt.hashpw(rawPassword, BCrypt.gensalt()))
                 .setDisplayName(displayName)
                 .setEmail(normalizedEmail)
-                .setStatus("ACTIVE");
+                .setStatus("ACTIVE")
+                .setTopicActiveLimit(normalizeTopicActiveLimit(topicActiveLimit));
         sysUserRepository.insert(user);
         assignRoles(user.getId(), List.of("BOX_OWNER"));
         log.info("User created: id={} email={}", user.getId(), normalizedEmail);
@@ -103,7 +104,7 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Override
     @Transactional
-    public void updateUser(Long id, String displayName, String email) {
+    public void updateUser(Long id, String displayName, String email, Integer topicActiveLimit) {
         SysUserEntity user = getById(id);
         String normalizedEmail = normalizeEmail(email);
         if (normalizedEmail.isBlank()) {
@@ -113,7 +114,10 @@ public class SysUserServiceImpl implements SysUserService {
         if (sameEmailUser != null && !sameEmailUser.getId().equals(id)) {
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱已存在");
         }
-        user.setUsername(normalizedEmail).setDisplayName(displayName).setEmail(normalizedEmail);
+        user.setUsername(normalizedEmail)
+                .setDisplayName(displayName)
+                .setEmail(normalizedEmail)
+                .setTopicActiveLimit(normalizeTopicActiveLimit(topicActiveLimit));
         sysUserRepository.update(user);
     }
 
@@ -207,6 +211,10 @@ public class SysUserServiceImpl implements SysUserService {
 
     private String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private int normalizeTopicActiveLimit(Integer limit) {
+        return limit == null ? 5 : Math.max(1, limit);
     }
 
     /**

@@ -26,6 +26,9 @@ public class QuestionEntity implements Serializable {
     @TableField("attachment_id")
     private Long attachmentId;
 
+    @TableField("topic_id")
+    private Long topicId;
+
     private String question;
     private QuestionStatus status;
     private String ip;

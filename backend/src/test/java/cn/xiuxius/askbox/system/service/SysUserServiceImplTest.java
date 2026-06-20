@@ -52,7 +52,7 @@ class SysUserServiceImplTest {
                 .when(sysUserRepository)
                 .insert(any(SysUserEntity.class));
 
-        SysUserEntity created = service.createUser(" Owner@Example.COM ", "secret123", "Owner");
+        SysUserEntity created = service.createUser(" Owner@Example.COM ", "secret123", "Owner", null);
 
         assertThat(created.getUsername()).isEqualTo("owner@example.com");
         assertThat(created.getEmail()).isEqualTo("owner@example.com");
@@ -72,7 +72,7 @@ class SysUserServiceImplTest {
         when(sysUserRepository.findById(7L)).thenReturn(user);
         when(sysUserRepository.findByEmail("new@example.com")).thenReturn(null);
 
-        service.updateUser(7L, "New", " New@Example.COM ");
+        service.updateUser(7L, "New", " New@Example.COM ", null);
 
         ArgumentCaptor<SysUserEntity> captor = ArgumentCaptor.forClass(SysUserEntity.class);
         verify(sysUserRepository).update(captor.capture());

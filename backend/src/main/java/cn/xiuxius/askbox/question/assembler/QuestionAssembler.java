@@ -8,21 +8,28 @@ import cn.xiuxius.askbox.question.entity.QuestionEntity;
 import cn.xiuxius.askbox.question.view.AdminQuestionView;
 import cn.xiuxius.askbox.question.view.PendingQuestionView;
 import cn.xiuxius.askbox.question.view.QuestionView;
+import cn.xiuxius.askbox.topic.view.TopicSummaryView;
 
 public final class QuestionAssembler {
 
     private QuestionAssembler() {}
 
-    public static PendingQuestionView toPendingView(QuestionEntity question, AttachmentView avatar) {
+    public static PendingQuestionView toPendingView(
+            QuestionEntity question, AttachmentView avatar, TopicSummaryView topic) {
         return new PendingQuestionView(
                 question.getId(),
                 avatar,
                 question.getQuestion(),
-                toEpochMillis(question.getCreatedAt(), question.getUpdatedAt()));
+                toEpochMillis(question.getCreatedAt(), question.getUpdatedAt()),
+                topic);
     }
 
     public static QuestionView toQuestionView(
-            QuestionEntity question, AttachmentView avatar, AnswerEntity answer, AttachmentView ownerAvatar) {
+            QuestionEntity question,
+            AttachmentView avatar,
+            AnswerEntity answer,
+            AttachmentView ownerAvatar,
+            TopicSummaryView topic) {
         OffsetDateTime fallback = question.getUpdatedAt() != null ? question.getUpdatedAt() : question.getCreatedAt();
         long ts = answer != null
                 ? toEpochMillis(answer.getCreatedAt(), fallback)
@@ -33,7 +40,8 @@ public final class QuestionAssembler {
                 question.getQuestion(),
                 answer != null ? answer.getContent() : null,
                 ownerAvatar,
-                ts);
+                ts,
+                topic);
     }
 
     public static AdminQuestionView toAdminView(QuestionEntity question, String boxSlug, AnswerEntity answer) {

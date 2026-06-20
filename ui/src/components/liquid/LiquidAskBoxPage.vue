@@ -15,6 +15,8 @@ import {
   getAnonymousAvatars,
   getPublicBoxProfile,
   getPublishedQA,
+  getPublicTopics,
+  resolvePublicTopic,
   submitQuestion,
 } from "@/api/public";
 import { pageBackground } from "@/assets/background";
@@ -28,6 +30,10 @@ const slug = computed(() => route.params.slug || "xiaoxiu");
 const boxProfile = ref({ slug: "", displayName: "", description: "" });
 const avatarList = ref([]);
 const publishedQA = ref([]);
+const publicTopics = ref([]);
+const selectedTopicCode = ref("");
+const filterTopicCode = ref("");
+const topicNotice = ref("");
 const selectedAvatar = ref(null);
 const qaLoading = ref(false);
 const qaPage = ref(1);
@@ -55,11 +61,12 @@ async function loadPublishedQA(reset = false) {
   qaLoading.value = true;
   const page = reset ? 1 : qaPage.value;
   try {
-    const result = await getPublishedQA(slug.value, page, 10);
+    const result = await getPublishedQA(slug.value, page, 10, filterTopicCode.value);
     const items = result.records.map(q => ({
       id: q.id,
       profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
+      topic: q.topic,
       question: q.question,
       answer: q.answer,
       ts: q.ts,
@@ -81,7 +88,7 @@ async function loadPublishedQA(reset = false) {
 
 async function doSendQuestion(text) {
   if (!selectedAvatar.value) throw new Error("请先选择头像");
-  await submitQuestion(slug.value, selectedAvatar.value.id, text);
+  await submitQuestion(slug.value, selectedAvatar.value.id, text, activeSubmitTopicCode.value);
 }
 
 const rootRef = ref(null);
@@ -159,6 +166,13 @@ const canSend = computed(() => content.value.trim().length > 0 && !sending.value
 const draftText = computed(() => content.value.trim());
 const composerExpanded = computed(() => composerOpen.value || composerClosing.value);
 const visibleQA = computed(() => publishedQA.value);
+const activeSubmitTopicCode = computed(() => {
+  const code = selectedTopicCode.value;
+  return publicTopics.value.some(topic => topic.code === code && topic.available) ? code : "";
+});
+const selectedTopic = computed(() =>
+  publicTopics.value.find(topic => topic.code === selectedTopicCode.value) || null,
+);
 const boxTitle = computed(() => {
   const name = boxProfile.value.displayName?.trim();
   return name || "AskBox";
@@ -184,6 +198,55 @@ async function loadBoxProfile() {
     boxProfile.value = { slug: slug.value, displayName: "", description: "" };
     console.error("Failed to load box profile", err);
   }
+}
+
+async function loadTopics() {
+  try {
+    publicTopics.value = await getPublicTopics(slug.value);
+  } catch (err) {
+    publicTopics.value = [];
+    console.error("Failed to load topics", err);
+  }
+}
+
+async function resolveInitialTopic() {
+  const code = typeof route.query.topic === "string" ? route.query.topic : "";
+  topicNotice.value = "";
+  if (!code) {
+    selectedTopicCode.value = "";
+    return;
+  }
+  try {
+    const topic = await resolvePublicTopic(slug.value, code);
+    if (topic.available) {
+      if (!publicTopics.value.some(item => item.code === topic.code)) {
+        publicTopics.value = [topic, ...publicTopics.value];
+      }
+      selectedTopicCode.value = topic.code;
+      return;
+    }
+    selectedTopicCode.value = "";
+    topicNotice.value = "话题已结束了哦，下次早点来吧";
+    showFailToast(topicNotice.value);
+  } catch (err) {
+    selectedTopicCode.value = "";
+    topicNotice.value = "话题已结束了哦，下次早点来吧";
+    showFailToast(topicNotice.value);
+    console.error("Failed to resolve topic", err);
+  }
+}
+
+function selectTopic(code) {
+  selectedTopicCode.value = selectedTopicCode.value === code ? "" : code;
+  nextTick(() => scheduleGlassRefresh(rootRef.value));
+}
+
+function selectFilterTopic(code) {
+  filterTopicCode.value = code;
+  publishedQA.value = [];
+  qaPage.value = 1;
+  qaHasMore.value = false;
+  loadPublishedQA(true);
 }
 
 function loadMore() {
@@ -998,10 +1061,16 @@ watch(slug, async () => {
   publishedQA.value = [];
   qaPage.value = 1;
   qaHasMore.value = false;
+  publicTopics.value = [];
+  selectedTopicCode.value = "";
+  filterTopicCode.value = "";
+  topicNotice.value = "";
   await Promise.all([
     loadBoxProfile(),
-    loadPublishedQA(true),
+    loadTopics(),
   ]);
+  await resolveInitialTopic();
+  await loadPublishedQA(true);
   await nextTick();
   scheduleStableGlassRefresh();
   scheduleQAScrollMotion();
@@ -1013,8 +1082,10 @@ onMounted(async () => {
   await Promise.all([
     loadAvatars(),
     loadBoxProfile(),
-    loadPublishedQA(true),
+    loadTopics(),
   ]);
+  await resolveInitialTopic();
+  await loadPublishedQA(true);
   initLiquidGlass();
   nextTick(() => scheduleQAScrollMotion());
 });
@@ -1076,6 +1147,26 @@ onBeforeUnmount(() => {
       aria-label="公开回复列表"
       @scroll="handleQAScroll"
     >
+      <nav v-if="publicTopics.length" class="topic-filter" aria-label="按话题筛选">
+        <button
+          class="topic-chip"
+          :class="{ active: !filterTopicCode }"
+          type="button"
+          @click="selectFilterTopic('')"
+        >
+          全部
+        </button>
+        <button
+          v-for="topic in publicTopics"
+          :key="topic.code"
+          class="topic-chip"
+          :class="{ active: filterTopicCode === topic.code }"
+          type="button"
+          @click="selectFilterTopic(topic.code)"
+        >
+          {{ topic.title }}
+        </button>
+      </nav>
       <article
         v-for="qa in visibleQA"
         :key="qa.id"
@@ -1093,6 +1184,7 @@ onBeforeUnmount(() => {
           </span>
           <time>{{ qa.time }}</time>
         </header>
+        <span v-if="qa.topic" class="topic-badge">{{ qa.topic.title }}</span>
         <p class="qa-question">{{ qa.question }}</p>
         <div v-if="qa.ownerAvatar" class="qa-owner-line">
           <span class="qa-avatar owner" :style="avatarImageStyle(qa.ownerAvatar)">
@@ -1143,6 +1235,7 @@ onBeforeUnmount(() => {
           </button>
         </header>
         <time class="detail-time">{{ selectedQA.time }}</time>
+        <span v-if="selectedQA.topic" class="topic-badge detail-topic">{{ selectedQA.topic.title }}</span>
         <p class="detail-question">{{ selectedQA.question }}</p>
         <div v-if="selectedQA.ownerAvatar" class="detail-owner-line">
           <span class="qa-avatar owner" :style="avatarImageStyle(selectedQA.ownerAvatar)">
@@ -1199,13 +1292,36 @@ onBeforeUnmount(() => {
       </button>
 
       <div v-else class="composer-expanded-body">
+        <div v-if="topicNotice || publicTopics.length" class="composer-topics">
+          <p v-if="topicNotice" class="topic-notice">{{ topicNotice }}</p>
+          <div v-if="publicTopics.length" class="topic-options" aria-label="选择话题">
+            <button
+              class="topic-chip"
+              :class="{ active: !selectedTopicCode }"
+              type="button"
+              @click="selectTopic('')"
+            >
+              无
+            </button>
+            <button
+              v-for="topic in publicTopics"
+              :key="topic.code"
+              class="topic-chip"
+              :class="{ active: selectedTopicCode === topic.code }"
+              type="button"
+              @click="selectTopic(topic.code)"
+            >
+              {{ topic.title }}
+            </button>
+          </div>
+        </div>
         <textarea
           ref="textareaRef"
           v-model="content"
           class="composer-input"
           rows="4"
           maxlength="350"
-          placeholder="写下你想问的，我会认真回答。"
+          :placeholder="selectedTopic ? `参与「${selectedTopic.title}」，写下你想问的。` : '写下你想问的，我会认真回答。'"
           aria-label="提问内容"
           @keydown="onComposerKeydown"
           @blur="closeComposerIfEmpty"
@@ -1282,7 +1398,7 @@ onBeforeUnmount(() => {
   --composer-width: var(--stage-width);
   --brand-top: 32px;
   --composer-top: 94px;
-  --composer-expanded-height: 264px;
+  --composer-expanded-height: 326px;
   --list-top: 176px;
   --list-bottom: 28px;
   --preview-top: calc(var(--composer-top) + var(--composer-expanded-height) + 16px);
@@ -1427,6 +1543,67 @@ onBeforeUnmount(() => {
   pointer-events: none;
   transform: translateY(10px) scale(0.985);
   transition: none;
+}
+
+.topic-filter,
+.topic-options {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scrollbar-width: none;
+}
+
+.topic-filter {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin-bottom: 18px;
+}
+
+.topic-filter::-webkit-scrollbar,
+.topic-options::-webkit-scrollbar {
+  display: none;
+}
+
+.topic-chip {
+  flex: 0 0 auto;
+  min-height: 34px;
+  max-width: 220px;
+  border: 0;
+  border-radius: 17px;
+  padding: 0 13px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.24);
+  color: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topic-chip.active {
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(18, 18, 24, 0.92);
+}
+
+.topic-badge {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 26px;
+  align-items: center;
+  margin-bottom: 9px;
+  border-radius: 13px;
+  padding: 0 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qa-card {
@@ -1661,6 +1838,10 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
+.detail-topic {
+  margin-top: 8px;
+}
+
 .detail-question,
 .detail-answer {
   position: relative;
@@ -1797,6 +1978,23 @@ onBeforeUnmount(() => {
   min-height: var(--composer-expanded-height);
   padding: 10px;
   transform: translateY(0) scale(1);
+}
+
+.composer-topics {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.topic-notice {
+  margin: 0;
+  border-radius: 14px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.45;
 }
 
 .composer-card.closing {

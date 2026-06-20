@@ -25,3 +25,12 @@ export const dismissQuestion = (id) => api.post(`/box/questions/${id}/dismiss`)
 
 /** DELETE /api/box/questions/{id} */
 export const deleteQuestion = (id) => api.delete(`/box/questions/${id}`)
+
+/** GET /api/box/topics */
+export const getTopics = () => api.get('/box/topics')
+
+/** POST /api/box/topics */
+export const createTopic = (data) => api.post('/box/topics', data)
+
+/** POST /api/box/topics/{id}/close */
+export const closeTopic = (id) => api.post(`/box/topics/${id}/close`)

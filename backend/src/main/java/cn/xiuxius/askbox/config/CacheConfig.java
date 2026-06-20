@@ -26,6 +26,8 @@ public class CacheConfig implements CachingConfigurer {
 
     public static final String CACHE_PUBLISHED = "published";
     public static final String CACHE_ANONYMOUS_AVATARS = "anonymous-avatars";
+    public static final String CACHE_PUBLIC_TOPICS = "public-topics";
+    public static final String CACHE_TOPIC_SUMMARIES = "topic-summaries";
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
@@ -34,6 +36,8 @@ public class CacheConfig implements CachingConfigurer {
         Map<String, RedisCacheConfiguration> perCache = new HashMap<>();
         perCache.put(CACHE_PUBLISHED, defaultCacheConfig(Duration.ofMinutes(2)));
         perCache.put(CACHE_ANONYMOUS_AVATARS, defaultCacheConfig(Duration.ofMinutes(10)));
+        perCache.put(CACHE_PUBLIC_TOPICS, defaultCacheConfig(Duration.ofMinutes(2)));
+        perCache.put(CACHE_TOPIC_SUMMARIES, defaultCacheConfig(Duration.ofMinutes(5)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

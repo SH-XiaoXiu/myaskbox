@@ -20,6 +20,7 @@ public final class SystemAssembler {
                 user.getDisplayName(),
                 user.getEmail(),
                 user.getStatus(),
+                user.getTopicActiveLimit() == null ? 5 : user.getTopicActiveLimit(),
                 roles,
                 user.getCreatedAt());
     }

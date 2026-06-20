@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { uploadAttachmentObject } from '@/api/attachments'
@@ -8,6 +8,7 @@ import { useLogoutConfirm } from '@/composables/useLogoutConfirm'
 import { formatTime } from '@/utils'
 import { assetSrc } from '@/utils/assets'
 import ClassicAskBoxPage from '@/components/classic/ClassicAskBoxPage.vue'
+import ClassicQuestionList from '@/components/classic/ClassicQuestionList.vue'
 import {
   getBoxProfile,
   updateBoxProfile,
@@ -38,6 +39,9 @@ const pageState = ref({
 
 const homeSection = ref('inbox')
 const questionStatusTab = ref('pending')
+const renderedQuestionStatusTab = ref('pending')
+const questionListExiting = ref(false)
+const questionListMinHeight = ref('')
 const selectedQuestion = ref(null)
 const detailOpen = ref(false)
 const answerText = ref('')
@@ -65,6 +69,7 @@ const emailSending = ref(false)
 const emailSaving = ref(false)
 
 let pollTimer = 0
+let questionTabSwitchToken = 0
 
 const homeSections = [
   { id: 'public', label: '公开页', icon: 'ri-global-line' },
@@ -81,7 +86,7 @@ const questionTabs = [
 const questionStatusIndex = computed({
   get: () => Math.max(0, questionTabs.findIndex((tab) => tab.id === questionStatusTab.value)),
   set: (idx) => {
-    questionStatusTab.value = questionTabs[idx]?.id || 'pending'
+    switchQuestionStatusTab(questionTabs[idx]?.id || 'pending')
   },
 })
 const publicUrl = computed(() => `/box/${boxProfile.value.slug}`)
@@ -93,11 +98,12 @@ const accountEmail = computed(() => auth.user?.email || auth.user?.username || '
 const accountAvatar = computed(() => accountAvatarPreview.value || auth.user?.avatar || boxProfile.value.avatar)
 const activeTopics = computed(() => topics.value.filter((topic) => topic.available))
 const displayedQuestions = computed(() => {
-  if (questionStatusTab.value === 'pending') return pendingQuestions.value
-  if (questionStatusTab.value === 'published') return publishedQA.value
-  if (questionStatusTab.value === 'dismissed') return dismissedQuestions.value
+  if (renderedQuestionStatusTab.value === 'pending') return pendingQuestions.value
+  if (renderedQuestionStatusTab.value === 'published') return publishedQA.value
+  if (renderedQuestionStatusTab.value === 'dismissed') return dismissedQuestions.value
   return []
 })
+const visibleQuestions = computed(() => (questionListExiting.value ? [] : displayedQuestions.value))
 const selectedIsPending = computed(() => questionStatusTab.value === 'pending' && !selectedQuestion.value?.answer && selectedQuestion.value)
 const selectedIsPublished = computed(() => !!selectedQuestion.value?.answer)
 const selectedCanDelete = computed(() => !!selectedQuestion.value && !selectedIsPending.value)
@@ -178,16 +184,24 @@ async function loadTopics() {
 }
 
 function currentPageState() {
-  if (questionStatusTab.value === 'pending') return pageState.value.pending
-  if (questionStatusTab.value === 'published') return pageState.value.published
-  if (questionStatusTab.value === 'dismissed') return pageState.value.dismissed
+  return pageStateFor(renderedQuestionStatusTab.value)
+}
+
+function pageStateFor(tab) {
+  if (tab === 'pending') return pageState.value.pending
+  if (tab === 'published') return pageState.value.published
+  if (tab === 'dismissed') return pageState.value.dismissed
   return null
 }
 
 function loadActivePage(reset = false) {
-  if (questionStatusTab.value === 'pending') return loadPending(reset)
-  if (questionStatusTab.value === 'published') return loadHistory('PUBLISHED', reset)
-  if (questionStatusTab.value === 'dismissed') return loadHistory('DISMISSED', reset)
+  return loadQuestionTab(renderedQuestionStatusTab.value, reset)
+}
+
+function loadQuestionTab(tab, reset = false) {
+  if (tab === 'pending') return loadPending(reset)
+  if (tab === 'published') return loadHistory('PUBLISHED', reset)
+  if (tab === 'dismissed') return loadHistory('DISMISSED', reset)
 }
 
 function handleListScroll(event) {
@@ -196,6 +210,48 @@ function handleListScroll(event) {
   const el = event.currentTarget
   const distance = el.scrollHeight - el.scrollTop - el.clientHeight
   if (distance < 180) loadActivePage()
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+}
+
+async function switchQuestionStatusTab(tab) {
+  if (!tab || tab === questionStatusTab.value) return
+  const token = ++questionTabSwitchToken
+  questionStatusTab.value = tab
+  selectedQuestion.value = null
+  detailOpen.value = false
+  answerText.value = ''
+  if (visibleQuestions.value.length && !prefersReducedMotion()) {
+    await runQuestionListExit(token)
+  }
+  if (token !== questionTabSwitchToken) return
+  renderedQuestionStatusTab.value = tab
+  await nextTick()
+  const state = pageStateFor(tab)
+  if (state && state.page === 1 && !state.loading) {
+    await loadQuestionTab(tab, true)
+  }
+  startPolling()
+}
+
+async function runQuestionListExit(token) {
+  const list = document.querySelector('.question-list .classic-animated-list__inner')
+  questionListMinHeight.value = list ? `${list.offsetHeight}px` : ''
+  questionListExiting.value = true
+  await nextTick()
+  await waitForQuestionLeave()
+  if (token === questionTabSwitchToken) {
+    questionListExiting.value = false
+    questionListMinHeight.value = ''
+  }
+}
+
+function waitForQuestionLeave() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, prefersReducedMotion() ? 0 : 720)
+  })
 }
 
 async function refreshCurrent({ silent = false } = {}) {
@@ -474,11 +530,16 @@ function questionTime(question) {
   return question?.ts ? formatTime(question.ts) : question?.time
 }
 
-watch([homeSection, questionStatusTab], () => {
+watch(homeSection, () => {
   selectedQuestion.value = null
   detailOpen.value = false
   answerText.value = ''
   if (homeSection.value === 'public') {
+    startPolling()
+    return
+  }
+  if (homeSection.value === 'inbox') {
+    refreshCurrent({ silent: true })
     startPolling()
     return
   }
@@ -546,38 +607,18 @@ onBeforeUnmount(() => {
 
         <van-pull-refresh v-model="refreshing" class="list-refresh" @refresh="handlePullRefresh">
           <section class="question-list" :aria-label="activeQuestionTab.label" @scroll="handleListScroll">
-            <TransitionGroup name="classic-list" tag="div" class="question-list__inner">
-              <article
-                v-for="question in displayedQuestions"
-                :key="question.id"
-                class="classic-card classic-press question-card"
-                role="button"
-                tabindex="0"
-                @click="selectQuestion(question)"
-                @keydown.enter.prevent="selectQuestion(question)"
-                @keydown.space.prevent="selectQuestion(question)"
-              >
-                <header>
-                  <span class="mini-avatar" :style="avatarStyle(question.profile)">
-                    <img v-if="avatarSrc(question.profile)" :src="avatarSrc(question.profile)" alt="" />
-                  </span>
-                  <time>{{ questionTime(question) }}</time>
-                </header>
-                <span v-if="question.topic" class="topic-badge">{{ question.topic.title }}</span>
-                <p>{{ question.question }}</p>
-                <blockquote v-if="question.answer">{{ question.answer }}</blockquote>
-              </article>
-            </TransitionGroup>
-
-            <van-empty v-if="displayedQuestions.length === 0 && !currentPageState()?.loading" image="search" description="这里暂时没有内容" />
-            <div
-              v-else-if="(currentPageState()?.loading && displayedQuestions.length === 0) || currentPageState()?.hasMore"
-              class="load-state"
-              aria-live="polite"
-            >
-              <van-loading v-if="currentPageState()?.loading && displayedQuestions.length === 0" size="18" />
-              <span>{{ currentPageState()?.loading ? '加载中' : '继续下滑加载更多' }}</span>
-            </div>
+            <ClassicQuestionList
+              :questions="visibleQuestions"
+              variant="owner"
+              :transition-name="questionListExiting ? 'classic-filter-list' : 'classic-list'"
+              :min-height="questionListMinHeight"
+              :loading="!questionListExiting && !!currentPageState()?.loading"
+              :has-more="!questionListExiting && !!currentPageState()?.hasMore"
+              empty-description="这里暂时没有内容"
+              :show-load-state="!questionListExiting"
+              :aria-label="activeQuestionTab.label"
+              @open="selectQuestion"
+            />
           </section>
         </van-pull-refresh>
       </section>
@@ -746,14 +787,16 @@ onBeforeUnmount(() => {
         <header class="detail-head">
           <div>
             <time>{{ questionTime(selectedQuestion) }}</time>
-            <h2>{{ selectedIsPending ? '回答问题' : '问题详情' }}</h2>
+            <h2 class="detail-title">
+              <span>{{ selectedIsPending ? '回答问题' : '问题详情' }}</span>
+              <em v-if="selectedQuestion.topic" :title="selectedQuestion.topic.title">#{{ selectedQuestion.topic.title }}</em>
+            </h2>
           </div>
           <button class="nav-icon" type="button" aria-label="关闭" @click="detailOpen = false">
             <i class="ri-close-line" aria-hidden="true"></i>
           </button>
         </header>
         <div class="detail-scroll">
-          <span v-if="selectedQuestion.topic" class="topic-badge detail-topic">{{ selectedQuestion.topic.title }}</span>
           <p class="detail-question">{{ selectedQuestion.question }}</p>
 
           <section v-if="selectedIsPending" class="answer-editor">
@@ -763,7 +806,6 @@ onBeforeUnmount(() => {
               rows="6"
               maxlength="5000"
               autosize
-              show-word-limit
               placeholder="写下你的回答。"
               :error-message="answerError"
             />
@@ -1121,22 +1163,6 @@ onBeforeUnmount(() => {
   overscroll-behavior: contain;
 }
 
-.question-list__inner {
-  display: grid;
-  gap: 10px;
-}
-
-.question-card {
-  padding: 14px;
-}
-
-.question-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .mini-avatar {
   width: 28px;
   height: 28px;
@@ -1150,50 +1176,6 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-time {
-  color: var(--classic-muted);
-  font-size: 12px;
-}
-
-.question-card p {
-  margin: 10px 0 0;
-  color: var(--classic-text);
-  font-size: 14px;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-}
-
-.topic-badge {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  min-height: 24px;
-  margin-top: 10px;
-  border-radius: 999px;
-  padding: 0 9px;
-  overflow: hidden;
-  background: rgba(47, 111, 237, 0.08);
-  color: var(--classic-primary);
-  font-size: 12px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.question-card blockquote {
-  margin: 10px 0 0;
-  padding: 0 0 0 12px;
-  border-left: 2px solid rgba(47, 111, 237, 0.35);
-  color: #374151;
-  font-size: 13px;
-  line-height: 1.65;
-  display: -webkit-box;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .load-state {
@@ -1350,11 +1332,6 @@ time {
   opacity: 0.6;
 }
 
-.detail-topic {
-  margin-top: 14px;
-  margin-bottom: 10px;
-}
-
 .detail-panel {
   display: flex;
   flex-direction: column;
@@ -1376,6 +1353,29 @@ time {
   margin: 4px 0 0;
   color: var(--classic-text);
   font-size: 18px;
+}
+
+.detail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detail-title span {
+  flex: 0 0 auto;
+}
+
+.detail-title em {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--classic-primary);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-scroll {

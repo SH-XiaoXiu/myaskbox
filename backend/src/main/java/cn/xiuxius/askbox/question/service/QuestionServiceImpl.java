@@ -2,6 +2,7 @@ package cn.xiuxius.askbox.question.service;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -33,6 +34,9 @@ import cn.xiuxius.askbox.question.view.PendingQuestionView;
 import cn.xiuxius.askbox.question.view.QuestionView;
 import cn.xiuxius.askbox.system.entity.SysUserEntity;
 import cn.xiuxius.askbox.system.repository.SysUserRepository;
+import cn.xiuxius.askbox.topic.entity.BoxTopicEntity;
+import cn.xiuxius.askbox.topic.service.TopicService;
+import cn.xiuxius.askbox.topic.view.TopicSummaryView;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,13 +63,22 @@ public class QuestionServiceImpl implements QuestionService {
     private final AnswerService answerService;
     private final AttachmentService attachmentService;
     private final SysUserRepository sysUserRepository;
+    private final TopicService topicService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
-    public void submit(String slug, Long attachmentId, String question, String ip, String userAgent, String origin) {
+    public void submit(
+            String slug,
+            Long attachmentId,
+            String question,
+            String topicCode,
+            String ip,
+            String userAgent,
+            String origin) {
         // 1. 通过 slug 找到提问箱
         BoxUserEntity box = boxUserService.getBySlug(slug);
+        BoxTopicEntity topic = topicService.requireAvailableForSubmit(box.getId(), topicCode);
         AttachmentView attachment = attachmentService.getById(attachmentId);
         if (attachment.usageType() != AttachmentUsageType.ANONYMOUS_AVATAR
                 || !Boolean.TRUE.equals(attachment.isActive())) {
@@ -75,6 +88,7 @@ public class QuestionServiceImpl implements QuestionService {
         QuestionEntity q = new QuestionEntity()
                 .setBoxUserId(box.getId())
                 .setAttachmentId(attachmentId)
+                .setTopicId(topic == null ? null : topic.getId())
                 .setQuestion(question)
                 .setStatus(QuestionStatus.PENDING)
                 .setIp(ip)
@@ -85,19 +99,22 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     @Override
-    @Cacheable(value = "published", key = "#slug + ':' + #page + ':' + #pageSize")
-    public PageResult<QuestionView> getPublished(String slug, long page, long pageSize) {
+    @Cacheable(value = "published", key = "#slug + ':' + (#topicCode ?: '') + ':' + #page + ':' + #pageSize")
+    public PageResult<QuestionView> getPublished(String slug, String topicCode, long page, long pageSize) {
         // 通过 slug 找到提问箱 → 查询该箱子的 PUBLISHED 问题
         BoxUserEntity box = boxUserService.getBySlug(slug);
-        IPage<QuestionEntity> result = questionRepository.findPublishedByBoxId(box.getId(), Page.of(page, pageSize));
-        // 转换为视图（含头像、回答信息）
-        return PageResult.from(result.convert(this::toQuestionView));
+        BoxTopicEntity topic = topicService.requireInBox(box.getId(), topicCode);
+        IPage<QuestionEntity> result = topic == null
+                ? questionRepository.findPublishedByBoxId(box.getId(), Page.of(page, pageSize))
+                : questionRepository.findPublishedByBoxIdAndTopicId(
+                        box.getId(), topic.getId(), Page.of(page, pageSize));
+        return PageResult.from(result).map(toQuestionViewWith(topicSummaryMap(result)));
     }
 
     @Override
     public PageResult<PendingQuestionView> getPending(Long boxUserId, long page, long pageSize) {
         IPage<QuestionEntity> result = questionRepository.findPendingByBoxId(boxUserId, Page.of(page, pageSize));
-        return PageResult.from(result.convert(this::toPendingView));
+        return PageResult.from(result).map(toPendingViewWith(topicSummaryMap(result)));
     }
 
     @Override
@@ -144,7 +161,7 @@ public class QuestionServiceImpl implements QuestionService {
         QuestionStatus qs = parseStatus(status);
         IPage<QuestionEntity> result =
                 questionRepository.findByBoxUserIdAndStatus(boxUserId, qs, Page.of(page, pageSize));
-        return PageResult.from(result.convert(this::toQuestionView));
+        return PageResult.from(result).map(toQuestionViewWith(topicSummaryMap(result)));
     }
 
     @Override
@@ -181,7 +198,7 @@ public class QuestionServiceImpl implements QuestionService {
     public PageResult<QuestionView> listAll(long page, long pageSize, Long boxUserId, String status, String keyword) {
         IPage<QuestionEntity> result =
                 questionRepository.pageAll(Page.of(page, pageSize), boxUserId, parseNullableStatus(status), keyword);
-        return PageResult.from(result.convert(this::toQuestionView));
+        return PageResult.from(result).map(toQuestionViewWith(topicSummaryMap(result)));
     }
 
     @Override
@@ -210,7 +227,19 @@ public class QuestionServiceImpl implements QuestionService {
         AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
         BoxUserEntity box = boxUserRepository.findById(q.getBoxUserId());
         AttachmentView ownerAvatar = accountAvatarOrNull(box);
-        return QuestionAssembler.toQuestionView(q, avatar, answer, ownerAvatar);
+        return QuestionAssembler.toQuestionView(q, avatar, answer, ownerAvatar, topicSummary(q));
+    }
+
+    private java.util.function.Function<QuestionEntity, QuestionView> toQuestionViewWith(
+            Map<?, TopicSummaryView> topics) {
+        return q -> {
+            AnswerEntity answer = answerService.getByQuestionId(q.getId());
+            AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
+            BoxUserEntity box = boxUserRepository.findById(q.getBoxUserId());
+            AttachmentView ownerAvatar = accountAvatarOrNull(box);
+            return QuestionAssembler.toQuestionView(
+                    q, avatar, answer, ownerAvatar, topicFromMap(topics, q.getTopicId()));
+        };
     }
 
     private AttachmentView accountAvatarOrNull(BoxUserEntity box) {
@@ -226,7 +255,50 @@ public class QuestionServiceImpl implements QuestionService {
     /** 构建待审问题视图（无回答）。 */
     private PendingQuestionView toPendingView(QuestionEntity q) {
         AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
-        return QuestionAssembler.toPendingView(q, avatar);
+        return QuestionAssembler.toPendingView(q, avatar, topicSummary(q));
+    }
+
+    private java.util.function.Function<QuestionEntity, PendingQuestionView> toPendingViewWith(
+            Map<?, TopicSummaryView> topics) {
+        return q -> {
+            AttachmentView avatar = attachmentService.getById(q.getAttachmentId());
+            return QuestionAssembler.toPendingView(q, avatar, topicFromMap(topics, q.getTopicId()));
+        };
+    }
+
+    private TopicSummaryView topicFromMap(Map<?, TopicSummaryView> topics, Long topicId) {
+        if (topicId == null || topics == null) {
+            return null;
+        }
+        TopicSummaryView topic = topics.get(topicId);
+        if (topic != null) {
+            return topic;
+        }
+        String expected = topicId.toString();
+        for (Map.Entry<?, TopicSummaryView> entry : topics.entrySet()) {
+            Object key = entry.getKey();
+            if (key instanceof Number number && number.longValue() == topicId) {
+                return entry.getValue();
+            }
+            if (key != null && expected.equals(key.toString())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private Map<Long, TopicSummaryView> topicSummaryMap(IPage<QuestionEntity> page) {
+        return topicService.summariesById(page.getRecords().stream()
+                .map(QuestionEntity::getTopicId)
+                .filter(java.util.Objects::nonNull)
+                .toList());
+    }
+
+    private TopicSummaryView topicSummary(QuestionEntity q) {
+        if (q.getTopicId() == null) {
+            return null;
+        }
+        return topicFromMap(topicService.summariesById(java.util.List.of(q.getTopicId())), q.getTopicId());
     }
 
     private QuestionStatus parseStatus(String status) {

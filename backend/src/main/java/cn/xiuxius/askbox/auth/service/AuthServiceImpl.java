@@ -92,9 +92,8 @@ public class AuthServiceImpl implements AuthService {
         SysUserEntity user = sysUserService.createUser(
                 normalizedEmail,
                 password,
-                displayName == null || displayName.isBlank()
-                        ? defaultDisplayName(normalizedEmail)
-                        : displayName.trim());
+                displayName == null || displayName.isBlank() ? defaultDisplayName(normalizedEmail) : displayName.trim(),
+                null);
         ensureOwnerBox(user);
         return loginUser(user);
     }
@@ -218,6 +217,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail(),
                 user.getDisplayName(),
                 avatar,
+                user.getTopicActiveLimit() == null ? 5 : user.getTopicActiveLimit(),
                 current.roles(),
                 current.permissions());
     }

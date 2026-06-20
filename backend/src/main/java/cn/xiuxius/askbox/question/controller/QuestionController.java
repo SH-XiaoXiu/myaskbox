@@ -50,7 +50,13 @@ public class QuestionController {
         String ip = RequestLogFilter.resolveClientIp(httpRequest);
         String ua = httpRequest.getHeader("User-Agent");
         questionService.submit(
-                slug, request.getAttachmentId(), request.getQuestion(), ip, ua, requestOrigin(httpRequest));
+                slug,
+                request.getAttachmentId(),
+                request.getQuestion(),
+                request.getTopicCode(),
+                ip,
+                ua,
+                requestOrigin(httpRequest));
         return R.ok();
     }
 
@@ -74,8 +80,9 @@ public class QuestionController {
     @Operation(summary = "获取已发布 Q&A 列表", description = "按分页返回指定提问箱中已公开发布的问题和回答。")
     public R<PageResult<QuestionView>> list(
             @Parameter(description = "提问箱 slug") @PathVariable String slug,
+            @Parameter(description = "话题 code") @RequestParam(required = false) String topicCode,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") long pageSize) {
-        return R.ok(questionService.getPublished(slug, page, pageSize));
+        return R.ok(questionService.getPublished(slug, topicCode, page, pageSize));
     }
 }

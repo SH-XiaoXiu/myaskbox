@@ -26,9 +26,19 @@ const routes = [
         component: () => import('@/components/admin/AdminUserListPage.vue'),
       },
       {
+        path: 'manage',
+        name: 'admin-manage',
+        component: () => import('@/components/admin/AdminManagePage.vue'),
+      },
+      {
         path: 'boxes',
         name: 'admin-boxes',
         component: () => import('@/components/admin/AdminBoxListPage.vue'),
+      },
+      {
+        path: 'topics',
+        name: 'admin-topics',
+        component: () => import('@/components/admin/AdminTopicListPage.vue'),
       },
       {
         path: 'questions',

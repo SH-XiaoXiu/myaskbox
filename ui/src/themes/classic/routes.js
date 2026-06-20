@@ -33,6 +33,12 @@ export default {
       component: () => import('@/components/classic/ClassicChangePasswordPage.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/topics',
+      name: 'topics',
+      component: () => import('@/components/classic/ClassicTopicPage.vue'),
+      meta: { requiresAuth: true, roles: ['BOX_OWNER'] },
+    },
   ],
   afterAdmin: [
     {
