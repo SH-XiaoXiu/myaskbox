@@ -209,7 +209,7 @@ watch(topicStatusTab, (status) => {
 
         <div class="topic-create topic-composer-piece" style="--piece-delay: 96ms">
           <van-field v-model="draft.title" label="标题" maxlength="24" show-word-limit placeholder="例如：今天吃什么？" />
-          <van-field v-model="draft.description" label="简介" type="textarea" rows="2" maxlength="500" autosize placeholder="给参与者一点上下文" />
+          <van-field v-model="draft.description" label="简介" type="textarea" rows="2" maxlength="500" autosize placeholder="给参与者一点提示" />
           <div class="time-block">
             <span>到期时间</span>
             <div class="quick-actions" aria-label="快捷到期时间">
