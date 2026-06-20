@@ -3,7 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import {
+  changeLike,
   getAnonymousAvatars,
+  getLikeCountsBatch,
   getPublicBoxProfile,
   getPublishedQA,
   getPublicTopics,
@@ -76,6 +78,7 @@ const avatarPickerRef = ref(null)
 const detailCardRef = ref(null)
 const detailTriggerRef = ref(null)
 const detailOriginStyle = ref({})
+const likePending = ref({})
 
 let receiptTimer = 0
 let avatarSnapTimer = 0
@@ -136,6 +139,93 @@ const selectedQATopicDescription = computed(() => {
     ''
   )
 })
+
+function likeStorageKey(targetType, targetId) {
+  return `askbox:liked:v1:${String(targetType).toLowerCase()}:${targetId}`
+}
+
+function likeTargetId(qa, targetType) {
+  return targetType === 'QUESTION' ? qa?.id : qa?.answerId
+}
+
+function likeCountField(targetType) {
+  return targetType === 'QUESTION' ? 'questionLikeCount' : 'answerLikeCount'
+}
+
+function isTargetLiked(qa, targetType) {
+  const targetId = likeTargetId(qa, targetType)
+  if (!targetId) return false
+  return localStorage.getItem(likeStorageKey(targetType, targetId)) === '1'
+}
+
+function isLikePending(qa, targetType) {
+  const targetId = likeTargetId(qa, targetType)
+  return !!(targetId && likePending.value[`${targetType}:${targetId}`])
+}
+
+function setTargetLiked(targetType, targetId, liked) {
+  const key = likeStorageKey(targetType, targetId)
+  if (liked) localStorage.setItem(key, '1')
+  else localStorage.removeItem(key)
+}
+
+function applyLikeCount(qa, targetType, count) {
+  if (!qa) return
+  const field = likeCountField(targetType)
+  qa[field] = Math.max(0, Number(count || 0))
+  const targetId = likeTargetId(qa, targetType)
+  const listItem = publishedQA.value.find((item) => likeTargetId(item, targetType) === targetId)
+  if (listItem) listItem[field] = qa[field]
+}
+
+function applyLikeDelta(qa, targetType, delta) {
+  const field = likeCountField(targetType)
+  applyLikeCount(qa, targetType, Number(qa?.[field] || 0) + delta)
+}
+
+async function hydrateLikeCounts(items) {
+  const targets = []
+  for (const item of items) {
+    targets.push({ targetType: 'QUESTION', targetId: item.id })
+    if (item.answerId) targets.push({ targetType: 'ANSWER', targetId: item.answerId })
+  }
+  if (!targets.length) return
+  try {
+    const counts = await getLikeCountsBatch(targets)
+    const countMap = new Map(counts.map((item) => [`${item.targetType}:${item.targetId}`, Number(item.likeCount || 0)]))
+    for (const item of items) {
+      item.questionLikeCount = countMap.get(`QUESTION:${item.id}`) || 0
+      item.answerLikeCount = item.answerId ? countMap.get(`ANSWER:${item.answerId}`) || 0 : 0
+    }
+  } catch (err) {
+    console.warn('Failed to load like counts', err)
+  }
+}
+
+async function toggleLike(targetType) {
+  const qa = selectedQA.value
+  const targetId = likeTargetId(qa, targetType)
+  if (!qa || !targetId || isLikePending(qa, targetType)) return
+
+  const pendingKey = `${targetType}:${targetId}`
+  const wasLiked = isTargetLiked(qa, targetType)
+  const nextLiked = !wasLiked
+  const delta = nextLiked ? 1 : -1
+  likePending.value[pendingKey] = true
+  setTargetLiked(targetType, targetId, nextLiked)
+  applyLikeDelta(qa, targetType, delta)
+
+  try {
+    const result = await changeLike(targetType, targetId, delta)
+    applyLikeCount(qa, targetType, result.likeCount)
+  } catch (err) {
+    setTargetLiked(targetType, targetId, wasLiked)
+    applyLikeDelta(qa, targetType, -delta)
+    showToast(err?.message || '点赞失败，请稍后再试')
+  } finally {
+    delete likePending.value[pendingKey]
+  }
+}
 
 function toAvatarOption(a) {
   return { ...a }
@@ -450,15 +540,19 @@ async function loadPublishedQA(reset = false, token = loadRequestToken, { animat
     if (token !== loadRequestToken) return
     const items = result.records.map((q, index) => ({
       id: q.id,
+      answerId: q.answerId,
       profile: q.avatar,
       ownerAvatar: q.ownerAvatar,
       topic: q.topic,
       question: q.question,
       answer: q.answer,
+      questionLikeCount: 0,
+      answerLikeCount: 0,
       ts: q.ts,
       time: formatTime(q.ts),
       motionIndex: index,
     }))
+    await hydrateLikeCounts(items)
     qaRefreshing.value = reset && !animate
     publishedQA.value = reset ? items : [...publishedQA.value, ...items]
     qaTotal.value = Number(result.total || 0)
@@ -1007,10 +1101,37 @@ onBeforeUnmount(() => {
                 <span class="mini-avatar" :style="avatarStyle(selectedQA.profile)">
                   <img v-if="avatarSrc(selectedQA.profile)" :src="avatarSrc(selectedQA.profile)" alt="" />
                 </span>
-                <p class="detail-question chat-bubble">{{ selectedQA.question }}</p>
+                <div class="chat-message">
+                  <p class="detail-question chat-bubble">{{ selectedQA.question }}</p>
+                  <button
+                    class="like-button"
+                    :class="{ liked: isTargetLiked(selectedQA, 'QUESTION') }"
+                    type="button"
+                    :aria-label="isTargetLiked(selectedQA, 'QUESTION') ? '取消点赞问题' : '点赞问题'"
+                    :disabled="isLikePending(selectedQA, 'QUESTION')"
+                    @click="toggleLike('QUESTION')"
+                  >
+                    <i :class="isTargetLiked(selectedQA, 'QUESTION') ? 'ri-heart-fill' : 'ri-heart-line'" aria-hidden="true"></i>
+                    <span>{{ selectedQA.questionLikeCount || 0 }}</span>
+                  </button>
+                </div>
               </div>
               <div class="chat-turn answer-turn detail-piece" style="--detail-piece-delay: 188ms">
-                <p class="detail-answer chat-bubble">{{ selectedQA.answer }}</p>
+                <div class="chat-message">
+                  <p class="detail-answer chat-bubble">{{ selectedQA.answer }}</p>
+                  <button
+                    v-if="selectedQA.answerId"
+                    class="like-button"
+                    :class="{ liked: isTargetLiked(selectedQA, 'ANSWER') }"
+                    type="button"
+                    :aria-label="isTargetLiked(selectedQA, 'ANSWER') ? '取消点赞回复' : '点赞回复'"
+                    :disabled="isLikePending(selectedQA, 'ANSWER')"
+                    @click="toggleLike('ANSWER')"
+                  >
+                    <i :class="isTargetLiked(selectedQA, 'ANSWER') ? 'ri-heart-fill' : 'ri-heart-line'" aria-hidden="true"></i>
+                    <span>{{ selectedQA.answerLikeCount || 0 }}</span>
+                  </button>
+                </div>
                 <span class="mini-avatar owner" :style="avatarStyle(selectedQA.ownerAvatar || boxProfile.avatar)">
                   <img v-if="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" :src="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" alt="" />
                   <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
@@ -2116,7 +2237,7 @@ time,
 
 .chat-detail .chat-turn {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
 }
@@ -2129,8 +2250,24 @@ time,
   justify-content: flex-end;
 }
 
-.chat-detail .chat-bubble {
+.chat-message {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
   max-width: min(78%, 310px);
+}
+
+.answer-turn .chat-message {
+  justify-items: end;
+}
+
+.chat-turn .mini-avatar {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.chat-detail .chat-bubble {
+  max-width: 100%;
   margin: 0;
   padding: 9px 12px;
   border-radius: 8px;
@@ -2149,6 +2286,59 @@ time,
   background: var(--classic-primary);
   color: #fff;
   border-bottom-right-radius: 3px;
+}
+
+.like-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -6px 0 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--classic-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color 180ms ease,
+    transform 180ms var(--classic-spring);
+}
+
+.question-turn .like-button {
+  justify-self: start;
+}
+
+.answer-turn .like-button {
+  justify-self: end;
+}
+
+.like-button i {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.like-button.liked {
+  color: #e5484d;
+}
+
+.like-button:active {
+  transform: scale(0.94);
+}
+
+.like-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.like-button:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.48);
+  outline-offset: 2px;
 }
 
 @keyframes avatar-catch {

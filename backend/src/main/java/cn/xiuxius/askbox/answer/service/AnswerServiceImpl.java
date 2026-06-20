@@ -10,6 +10,8 @@ import cn.xiuxius.askbox.answer.entity.AnswerEntity;
 import cn.xiuxius.askbox.answer.repository.AnswerRepository;
 import cn.xiuxius.askbox.common.BizException;
 import cn.xiuxius.askbox.common.ErrorCodes;
+import cn.xiuxius.askbox.like.enums.LikeTargetType;
+import cn.xiuxius.askbox.like.service.LikeService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AnswerServiceImpl implements AnswerService {
     private final AnswerRepository answerRepository;
+    private final LikeService likeService;
 
     @Override
     @Transactional
@@ -50,10 +53,15 @@ public class AnswerServiceImpl implements AnswerService {
     @Override
     public void delete(Long id) {
         answerRepository.deleteById(id);
+        likeService.deleteTarget(LikeTargetType.ANSWER, id);
     }
 
     @Override
     public void deleteByQuestionIdIfExists(Long questionId) {
+        AnswerEntity answer = answerRepository.findByQuestionId(questionId);
         answerRepository.deleteByQuestionId(questionId);
+        if (answer != null) {
+            likeService.deleteTarget(LikeTargetType.ANSWER, answer.getId());
+        }
     }
 }

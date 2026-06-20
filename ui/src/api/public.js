@@ -10,6 +10,12 @@ export const getPublicBoxProfile = (slug) => api.get(`/boxes/${slug}`)
 export const getPublishedQA = (slug, page = 1, pageSize = 10, topicCode = '') =>
   api.get(`/boxes/${slug}/questions`, { params: { page, pageSize, topicCode: topicCode || undefined } })
 
+/** POST /api/likes/batch */
+export const getLikeCountsBatch = (targets) => api.post('/likes/batch', { targets })
+
+/** POST /api/likes/change */
+export const changeLike = (targetType, targetId, delta) => api.post('/likes/change', { targetType, targetId, delta })
+
 /** POST /api/boxes/{slug}/questions */
 export const submitQuestion = (slug, attachmentId, question, topicCode = '') =>
   api.post(`/boxes/${slug}/questions`, { attachmentId, question, topicCode: topicCode || undefined })

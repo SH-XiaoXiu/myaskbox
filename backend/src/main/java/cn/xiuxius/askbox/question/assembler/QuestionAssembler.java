@@ -36,6 +36,7 @@ public final class QuestionAssembler {
                 : toEpochMillis(question.getCreatedAt(), fallback);
         return new QuestionView(
                 question.getId(),
+                answer != null ? answer.getId() : null,
                 avatar,
                 question.getQuestion(),
                 answer != null ? answer.getContent() : null,

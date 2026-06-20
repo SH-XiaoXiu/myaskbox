@@ -5,6 +5,7 @@ import cn.xiuxius.askbox.topic.view.TopicSummaryView;
 
 public record QuestionView(
         Long id,
+        Long answerId,
         AttachmentView avatar,
         String question,
         String answer,

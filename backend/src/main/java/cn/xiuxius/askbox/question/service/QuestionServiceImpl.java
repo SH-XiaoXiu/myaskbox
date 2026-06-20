@@ -24,6 +24,8 @@ import cn.xiuxius.askbox.boxuser.service.BoxUserService;
 import cn.xiuxius.askbox.common.BizException;
 import cn.xiuxius.askbox.common.ErrorCodes;
 import cn.xiuxius.askbox.common.PageResult;
+import cn.xiuxius.askbox.like.enums.LikeTargetType;
+import cn.xiuxius.askbox.like.service.LikeService;
 import cn.xiuxius.askbox.question.assembler.QuestionAssembler;
 import cn.xiuxius.askbox.question.entity.QuestionEntity;
 import cn.xiuxius.askbox.question.enums.QuestionStatus;
@@ -65,6 +67,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final SysUserRepository sysUserRepository;
     private final TopicService topicService;
     private final ApplicationEventPublisher eventPublisher;
+    private final LikeService likeService;
 
     @Override
     @Transactional
@@ -152,6 +155,7 @@ public class QuestionServiceImpl implements QuestionService {
         QuestionEntity q = getAndValidateOwnership(boxUserId, questionId, ErrorCodes.QUESTION_NOT_FOUND);
         if (q.isPending()) throw new BizException(ErrorCodes.QUESTION_STATUS_INVALID, "待回答的问题不能删除");
         answerService.deleteByQuestionIdIfExists(questionId);
+        likeService.deleteTarget(LikeTargetType.QUESTION, questionId);
         questionRepository.deleteById(questionId);
         log.info("QuestionEntity {} deleted by box {}", questionId, boxUserId);
     }
@@ -205,6 +209,7 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional
     public void forceDelete(Long questionId) {
         answerService.deleteByQuestionIdIfExists(questionId);
+        likeService.deleteTarget(LikeTargetType.QUESTION, questionId);
         questionRepository.deleteById(questionId);
         log.info("QuestionEntity {} force-deleted by admin", questionId);
     }

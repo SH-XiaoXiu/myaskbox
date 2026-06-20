@@ -6,12 +6,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import lombok.extern.slf4j.Slf4j;
 
 @SpringBootApplication
 @MapperScan("cn.xiuxius.askbox.**.mapper")
 @EnableCaching
+@EnableScheduling
 @Slf4j
 public class AskBoxApplication {
 
