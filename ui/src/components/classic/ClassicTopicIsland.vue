@@ -29,6 +29,7 @@ let pulseTimer = 0
 
 const selectedTopic = computed(() => props.topics.find((topic) => topic.code === props.modelValue) || null)
 const islandLabel = computed(() => selectedTopic.value?.title || props.label)
+const hasTopics = computed(() => props.topics.length > 0)
 
 function close() {
   if (open.value) playPulse('closing', 260)
@@ -42,7 +43,11 @@ function dismiss() {
 }
 
 function toggle() {
-  if (props.disabled || !props.topics.length) return
+  if (props.disabled) return
+  if (!hasTopics.value) {
+    playPulse('idle', 220)
+    return
+  }
   if (open.value) {
     close()
     return
@@ -87,26 +92,37 @@ onBeforeUnmount(() => {
   <nav
     ref="rootRef"
     class="topic-island"
-    :class="{ open, selected: selectedTopic, opening: islandPulse === 'opening', closing: islandPulse === 'closing' }"
+    :class="{
+      open,
+      selected: selectedTopic,
+      empty: !hasTopics,
+      opening: islandPulse === 'opening',
+      closing: islandPulse === 'closing',
+      idle: islandPulse === 'idle',
+    }"
     aria-label="话题筛选"
   >
-    <button
-      v-if="open"
-      class="topic-island__scrim"
-      type="button"
-      aria-label="关闭话题筛选"
-      @pointerdown.stop
-      @click.stop.prevent="dismiss"
-    ></button>
+    <Teleport to="body">
+      <button
+        v-if="open"
+        class="topic-island__scrim"
+        type="button"
+        aria-label="关闭话题筛选"
+        @pointerdown.stop
+        @click.stop.prevent="dismiss"
+      ></button>
+    </Teleport>
 
     <button
       class="topic-island__button"
       type="button"
-      :disabled="disabled || !topics.length"
+      :disabled="disabled"
       :aria-expanded="open"
+      :aria-disabled="!hasTopics"
       @click="toggle"
     >
-      <span class="topic-island__button-text" :title="islandLabel">{{ islandLabel }}</span>
+      <i v-if="!selectedTopic" class="ri-price-tag-3-line topic-island__icon" aria-hidden="true"></i>
+      <span v-else class="topic-island__button-text" :title="islandLabel">{{ islandLabel }}</span>
     </button>
 
     <Transition name="topic-island-menu">
@@ -178,7 +194,7 @@ onBeforeUnmount(() => {
     box-shadow 280ms ease;
 }
 
-.topic-island__scrim {
+:global(.topic-island__scrim) {
   position: fixed;
   inset: 0;
   z-index: 19;
@@ -205,6 +221,10 @@ onBeforeUnmount(() => {
   animation: topic-island-button-close 260ms cubic-bezier(0.3, 0.78, 0.28, 1.12) both;
 }
 
+.topic-island.idle .topic-island__button {
+  animation: topic-island-idle 220ms cubic-bezier(0.24, 0.84, 0.32, 1.18) both;
+}
+
 .topic-island.open .topic-island__button {
   border-color: transparent;
   background: transparent;
@@ -223,6 +243,12 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: opacity 120ms ease;
+}
+
+.topic-island__icon {
+  color: var(--classic-text);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .topic-island__menu {
@@ -371,6 +397,31 @@ onBeforeUnmount(() => {
   }
 }
 
+@keyframes topic-island-idle {
+  0% {
+    width: var(--island-width);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+    transform: scale3d(1, 1, 1);
+  }
+
+  34% {
+    width: calc(var(--island-width) + 18px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+    transform: scale3d(1.04, 0.92, 1);
+  }
+
+  68% {
+    width: calc(var(--island-width) - 5px);
+    transform: scale3d(0.96, 1.05, 1);
+  }
+
+  100% {
+    width: var(--island-width);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+    transform: scale3d(1, 1, 1);
+  }
+}
+
 @media (max-width: 430px) {
   .topic-island {
     --island-width: 64px;
@@ -392,6 +443,7 @@ onBeforeUnmount(() => {
   .topic-island,
   .topic-island.opening .topic-island__button,
   .topic-island.closing .topic-island__button,
+  .topic-island.idle .topic-island__button,
   .topic-island__menu {
     animation: none;
     transition: none;

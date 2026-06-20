@@ -66,6 +66,7 @@ const selectedQA = ref(null)
 const content = ref('')
 const sending = ref(false)
 const receiptMessage = ref('')
+const headCollapsed = ref(false)
 const listRef = ref(null)
 const ownerAvatarRef = ref(null)
 const sendButtonRef = ref(null)
@@ -467,7 +468,9 @@ function handleScroll() {
   qaSettleFrame = window.requestAnimationFrame(settleQAScrollMotion)
 
   const list = listRef.value
-  if (!list || qaLoading.value || !qaHasMore.value) return
+  if (!list) return
+  headCollapsed.value = list.scrollTop > 18
+  if (qaLoading.value || !qaHasMore.value) return
   const distance = list.scrollHeight - list.scrollTop - list.clientHeight
   if (distance < 220) loadPublishedQA(false)
 }
@@ -643,6 +646,7 @@ async function resetAndLoadPublicContent({ preserveList = false, animateList = t
   const token = ++loadRequestToken
   pageError.value = ''
   boxMissing.value = false
+  headCollapsed.value = false
   if (boxProfile.value.slug !== slug.value) {
     boxProfile.value = { slug: slug.value, displayName: '', ownerDisplayName: '', description: '', avatar: null }
   }
@@ -766,7 +770,7 @@ onBeforeUnmount(() => {
       <h1>提问箱不存在</h1>
     </section>
 
-    <header v-else class="ask-head" :class="{ 'is-detail-muted': detailOpen }">
+    <header v-else class="ask-head" :class="{ 'is-detail-muted': detailOpen, 'is-collapsed': headCollapsed }">
       <div class="ask-profile">
         <span ref="ownerAvatarRef" class="ask-avatar" :style="avatarStyle(boxProfile.avatar)">
           <img v-if="avatarSrc(boxProfile.avatar)" :src="avatarSrc(boxProfile.avatar)" alt="" />
@@ -778,12 +782,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <ClassicTopicIsland
-        v-if="publicTopics.length"
         :model-value="filterTopicCode"
         :topics="publicTopics"
         @change="selectFilterTopic"
       />
-      <p class="ask-meta">{{ qaTotal }} 条公开回复</p>
+      <p class="ask-meta">{{ qaTotal }}条</p>
     </header>
 
     <div v-if="!boxMissing" ref="listRef" class="ask-scroll" @scroll="handleScroll">
@@ -820,14 +823,16 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
-    <button
-      v-if="showComposer && !boxMissing && composerOpen"
-      class="composer-dismiss-layer"
-      type="button"
-      aria-label="关闭提问框"
-      @pointerdown.stop
-      @click.stop.prevent="closeComposer()"
-    ></button>
+    <Teleport to="body">
+      <button
+        v-if="showComposer && !boxMissing && composerOpen"
+        class="composer-dismiss-layer"
+        type="button"
+        aria-label="关闭提问框"
+        @pointerdown.stop
+        @click.stop.prevent="closeComposer()"
+      ></button>
+    </Teleport>
 
     <section
       v-if="showComposer && !boxMissing"
@@ -1067,18 +1072,19 @@ onBeforeUnmount(() => {
 }
 
 .ask-head {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  right: 0;
+  left: 0;
+  z-index: 9;
+  height: 96px;
   flex: 0 0 auto;
-  width: min(100%, 680px);
-  margin: 0 auto 12px;
+  width: min(calc(100% - 32px), 680px);
+  margin: 0 auto;
   overflow: visible;
+  pointer-events: none;
   transition:
     opacity 220ms ease,
-    transform 260ms var(--classic-ease),
     filter 260ms ease;
 }
 
@@ -1090,15 +1096,25 @@ onBeforeUnmount(() => {
 }
 
 .ask-head.is-detail-muted {
-  transform: translate3d(0, -2px, 0) scale(0.992);
+  opacity: 0.42;
 }
 
 .ask-profile {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
+  width: min(100%, 260px);
   min-width: 0;
-  justify-self: start;
+  pointer-events: auto;
+  transition:
+    opacity 240ms ease,
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 260ms ease;
+  will-change: transform, opacity;
 }
 
 .ask-profile > div {
@@ -1164,12 +1180,46 @@ onBeforeUnmount(() => {
 }
 
 .ask-meta {
-  justify-self: end;
+  position: absolute;
+  top: 45px;
+  right: 0;
+  z-index: 1;
+  max-width: 52px;
+  overflow: hidden;
   margin: 0;
   color: var(--classic-muted);
   font-size: 12px;
   text-align: right;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: none;
+  transition:
+    opacity 220ms ease,
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 260ms ease;
+  will-change: transform, opacity;
+}
+
+.ask-head.is-collapsed .ask-profile {
+  opacity: 0;
+  filter: blur(2px);
+  pointer-events: none;
+  transform: translate3d(-36px, -2px, 0) scale(0.96);
+}
+
+.ask-head.is-collapsed .ask-meta {
+  opacity: 0;
+  filter: blur(2px);
+  transform: translate3d(28px, -2px, 0) scale(0.96);
+}
+
+.ask-head :deep(.topic-island) {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  pointer-events: auto;
 }
 
 .ask-scroll {
@@ -1183,6 +1233,19 @@ onBeforeUnmount(() => {
   overscroll-behavior: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.classic-ask:not(.is-embedded) .ask-scroll {
+  padding-top: 112px;
+}
+
+.classic-ask.is-embedded .ask-head {
+  top: 0;
+  width: 100%;
+}
+
+.classic-ask.is-embedded .ask-scroll {
+  padding-top: 104px;
 }
 
 .ask-scroll::-webkit-scrollbar {
@@ -1322,7 +1385,7 @@ time,
   will-change: width, height;
 }
 
-.composer-dismiss-layer {
+:global(.composer-dismiss-layer) {
   position: fixed;
   inset: 0;
   z-index: 29;
