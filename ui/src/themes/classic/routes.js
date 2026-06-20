@@ -25,7 +25,25 @@ export default {
       path: '/home',
       name: 'home',
       component: () => import('@/components/classic/ClassicOwnerPage.vue'),
+      redirect: '/home/inbox',
       meta: { requiresAuth: true, roles: ['BOX_OWNER'] },
+      children: [
+        {
+          path: 'public',
+          name: 'home-public',
+          component: () => import('@/components/common/RoutePlaceholder.vue'),
+        },
+        {
+          path: 'inbox',
+          name: 'home-inbox',
+          component: () => import('@/components/common/RoutePlaceholder.vue'),
+        },
+        {
+          path: 'mine',
+          name: 'home-mine',
+          component: () => import('@/components/common/RoutePlaceholder.vue'),
+        },
+      ],
     },
     {
       path: '/password',

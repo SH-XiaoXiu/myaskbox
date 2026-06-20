@@ -62,6 +62,69 @@ body::before {
   width: 100%;
 }
 
+.route-stage {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.route-page {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.admin-route-page {
+  min-height: 100%;
+}
+
+.ubuntu-route-forward-enter-active,
+.ubuntu-route-forward-leave-active,
+.ubuntu-route-back-enter-active,
+.ubuntu-route-back-leave-active {
+  transform-origin: 50% 52%;
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 240ms ease;
+  will-change: transform, opacity;
+}
+
+.ubuntu-route-forward-leave-active,
+.ubuntu-route-back-leave-active {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ubuntu-route-forward-enter-active,
+.ubuntu-route-back-enter-active {
+  position: relative;
+  z-index: 1;
+}
+
+.ubuntu-route-forward-enter-from {
+  opacity: 0;
+  transform: translate3d(42px, 0, 0) scale(0.985);
+}
+
+.ubuntu-route-forward-leave-to {
+  opacity: 0;
+  transform: translate3d(-30px, 0, 0) scale(0.975);
+}
+
+.ubuntu-route-back-enter-from {
+  opacity: 0;
+  transform: translate3d(-42px, 0, 0) scale(0.985);
+}
+
+.ubuntu-route-back-leave-to {
+  opacity: 0;
+  transform: translate3d(30px, 0, 0) scale(0.975);
+}
+
 .van-toast {
   max-width: min(320px, calc(100vw - 48px));
   line-height: 1.45;

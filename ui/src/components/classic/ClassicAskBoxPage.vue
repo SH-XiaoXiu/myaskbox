@@ -655,11 +655,11 @@ async function resetAndLoadPublicContent({ preserveList = false, animateList = t
   composerOpen.value = false
   composerTouched.value = false
   content.value = ''
-  publicTopics.value = []
-  selectedTopicCode.value = ''
-  filterTopicCode.value = ''
-  topicNotice.value = ''
   if (!preserveList) {
+    publicTopics.value = []
+    selectedTopicCode.value = ''
+    filterTopicCode.value = ''
+    topicNotice.value = ''
     publishedQA.value = []
     qaTotal.value = 0
   }
@@ -670,7 +670,13 @@ async function resetAndLoadPublicContent({ preserveList = false, animateList = t
     const jobs = [loadBoxProfile(token), loadTopics(token)]
     if (props.showComposer) jobs.unshift(loadAvatars(token))
     await Promise.all(jobs)
-    await resolveInitialTopic(token)
+    if (preserveList && filterTopicCode.value && !publicTopics.value.some((topic) => topic.code === filterTopicCode.value)) {
+      filterTopicCode.value = ''
+    }
+    if (preserveList && selectedTopicCode.value && !publicTopics.value.some((topic) => topic.code === selectedTopicCode.value && topic.available)) {
+      selectedTopicCode.value = ''
+    }
+    if (!preserveList) await resolveInitialTopic(token)
     await loadPublishedQA(true, token, { animate: animateList })
     if (token !== loadRequestToken) return
     await nextTick()
@@ -927,50 +933,52 @@ onBeforeUnmount(() => {
       </button>
     </section>
 
-    <Transition name="detail-layer">
-      <div v-if="detailOpen" class="detail-layer" role="presentation">
-        <button
-          class="detail-scrim"
-          type="button"
-          aria-label="关闭回复详情"
-          @click="closeDetail"
-        ></button>
-        <article
-          v-if="selectedQA"
-          ref="detailCardRef"
-          class="detail-panel chat-detail"
-          :style="detailOriginStyle"
-          role="dialog"
-          aria-modal="true"
-          aria-label="回复详情"
-          tabindex="-1"
-          @keydown.esc="closeDetail"
-        >
-          <button class="detail-close" type="button" aria-label="关闭回复详情" @click="closeDetail">
-            <i class="ri-close-line" aria-hidden="true"></i>
-          </button>
-          <header class="detail-headline detail-piece" style="--detail-piece-delay: 80ms">
-            <time>{{ selectedQA.time }}</time>
-            <span v-if="selectedQA.topic" class="topic-badge detail-topic">{{ selectedQA.topic.title }}</span>
-          </header>
-          <section class="chat-transcript">
-            <div class="chat-turn question-turn detail-piece" style="--detail-piece-delay: 132ms">
-              <span class="mini-avatar" :style="avatarStyle(selectedQA.profile)">
-                <img v-if="avatarSrc(selectedQA.profile)" :src="avatarSrc(selectedQA.profile)" alt="" />
-              </span>
-              <p class="detail-question chat-bubble">{{ selectedQA.question }}</p>
-            </div>
-            <div class="chat-turn answer-turn detail-piece" style="--detail-piece-delay: 188ms">
-              <p class="detail-answer chat-bubble">{{ selectedQA.answer }}</p>
-              <span class="mini-avatar owner" :style="avatarStyle(selectedQA.ownerAvatar || boxProfile.avatar)">
-                <img v-if="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" :src="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" alt="" />
-                <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
-              </span>
-            </div>
-          </section>
-        </article>
-      </div>
-    </Transition>
+    <Teleport to="body">
+      <Transition name="detail-layer">
+        <div v-if="detailOpen" class="detail-layer" role="presentation">
+          <button
+            class="detail-scrim"
+            type="button"
+            aria-label="关闭回复详情"
+            @click="closeDetail"
+          ></button>
+          <article
+            v-if="selectedQA"
+            ref="detailCardRef"
+            class="detail-panel chat-detail"
+            :style="detailOriginStyle"
+            role="dialog"
+            aria-modal="true"
+            aria-label="回复详情"
+            tabindex="-1"
+            @keydown.esc="closeDetail"
+          >
+            <button class="detail-close" type="button" aria-label="关闭回复详情" @click="closeDetail">
+              <i class="ri-close-line" aria-hidden="true"></i>
+            </button>
+            <header class="detail-headline detail-piece" style="--detail-piece-delay: 80ms">
+              <time>{{ selectedQA.time }}</time>
+              <span v-if="selectedQA.topic" class="topic-badge detail-topic">{{ selectedQA.topic.title }}</span>
+            </header>
+            <section class="chat-transcript">
+              <div class="chat-turn question-turn detail-piece" style="--detail-piece-delay: 132ms">
+                <span class="mini-avatar" :style="avatarStyle(selectedQA.profile)">
+                  <img v-if="avatarSrc(selectedQA.profile)" :src="avatarSrc(selectedQA.profile)" alt="" />
+                </span>
+                <p class="detail-question chat-bubble">{{ selectedQA.question }}</p>
+              </div>
+              <div class="chat-turn answer-turn detail-piece" style="--detail-piece-delay: 188ms">
+                <p class="detail-answer chat-bubble">{{ selectedQA.answer }}</p>
+                <span class="mini-avatar owner" :style="avatarStyle(selectedQA.ownerAvatar || boxProfile.avatar)">
+                  <img v-if="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" :src="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" alt="" />
+                  <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
+                </span>
+              </div>
+            </section>
+          </article>
+        </div>
+      </Transition>
+    </Teleport>
   </main>
 </template>
 
@@ -1305,10 +1313,42 @@ time,
   will-change: width, height;
 }
 
+.composer-morph::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 60px;
+  left: 0;
+  z-index: 0;
+  height: var(--composer-surface-height);
+  border-radius: 22px;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.08),
+    0 18px 42px rgba(15, 23, 42, 0.18),
+    0 34px 78px rgba(15, 23, 42, 0.16);
+  transform: translate3d(0, 12px, 0) scale(0.96);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 180ms ease,
+    transform 260ms var(--classic-ease);
+}
+
 .composer-morph.open {
   width: min(calc(100vw - 32px), 520px);
   height: var(--composer-open-height);
   animation: composer-shell-open 540ms linear both;
+}
+
+.composer-morph.open::before {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.composer-morph.touched:not(.open)::before {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0) scale(0.96);
 }
 
 .composer-morph.open.has-topic-tools {
@@ -1335,9 +1375,9 @@ time,
   border: 1px solid rgba(226, 232, 240, 0.94);
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.98)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.99)),
     #fff;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   clip-path: inset(100% 42% 0 42% round 24px);
   opacity: 0;
   pointer-events: none;
@@ -1353,8 +1393,8 @@ time,
   bottom: -7px;
   width: 18px;
   height: 18px;
-  border-right: 1px solid rgba(226, 232, 240, 0.9);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  border-right: 1px solid rgba(226, 232, 240, 0.94);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.94);
   background: #f8fafc;
   transform: rotate(45deg);
   pointer-events: none;
@@ -2270,6 +2310,7 @@ time,
   }
 
   .composer-morph,
+  .composer-morph::before,
   .composer-morph.open,
   .composer-morph.touched:not(.open),
   .composer-surface,

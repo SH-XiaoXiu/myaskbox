@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { uploadAttachmentObject } from '@/api/attachments'
 import { useAuthStore } from '@/stores/auth'
@@ -8,6 +8,7 @@ import { useLogoutConfirm } from '@/composables/useLogoutConfirm'
 import { formatTime } from '@/utils'
 import { assetSrc } from '@/utils/assets'
 import ClassicAskBoxPage from '@/components/classic/ClassicAskBoxPage.vue'
+import ClassicHomePage from '@/components/classic/ClassicHomePage.vue'
 import ClassicQuestionList from '@/components/classic/ClassicQuestionList.vue'
 import {
   getBoxProfile,
@@ -22,6 +23,7 @@ import {
 } from '@/api/owner'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const { confirmLogout } = useLogoutConfirm()
 
@@ -37,7 +39,6 @@ const pageState = ref({
   dismissed: { page: 1, hasMore: false, loading: false },
 })
 
-const homeSection = ref('inbox')
 const questionStatusTab = ref('pending')
 const renderedQuestionStatusTab = ref('pending')
 const questionListExiting = ref(false)
@@ -70,12 +71,26 @@ const emailSaving = ref(false)
 
 let pollTimer = 0
 let questionTabSwitchToken = 0
+let homeSectionLeaveTimer = 0
 
 const homeSections = [
-  { id: 'public', label: '公开页', icon: 'ri-global-line' },
-  { id: 'inbox', label: '提问箱', icon: 'ri-inbox-2-line' },
-  { id: 'mine', label: '我的', icon: 'ri-user-smile-line' },
+  { id: 'public', label: '公开页', icon: 'ri-global-line', path: '/home/public' },
+  { id: 'inbox', label: '提问箱', icon: 'ri-inbox-2-line', path: '/home/inbox' },
+  { id: 'mine', label: '我的', icon: 'ri-user-smile-line', path: '/home/mine' },
 ]
+const lastHomeSectionIndex = ref(1)
+const homeSectionTransitionName = ref('ubuntu-route-forward')
+const HOME_SECTION_TTL = {
+  public: 5 * 60 * 1000,
+  inbox: 30 * 1000,
+  mine: 2 * 60 * 1000,
+}
+const homeSectionState = reactive({
+  public: { visited: false, loading: false, lastLoadedAt: 0 },
+  inbox: { visited: false, loading: false, lastLoadedAt: 0 },
+  mine: { visited: false, loading: false, lastLoadedAt: 0 },
+})
+const previousHomeSection = ref('')
 
 const questionTabs = [
   { id: 'pending', label: '待回答', icon: 'ri-inbox-2-line' },
@@ -89,6 +104,13 @@ const questionStatusIndex = computed({
     switchQuestionStatusTab(questionTabs[idx]?.id || 'pending')
   },
 })
+const homeSection = computed(() => {
+  const name = String(route.name || '')
+  if (name === 'home-public') return 'public'
+  if (name === 'home-mine') return 'mine'
+  return 'inbox'
+})
+const activeHomeSection = computed(() => homeSections.find((section) => section.id === homeSection.value) || homeSections[1])
 const publicUrl = computed(() => `/box/${boxProfile.value.slug}`)
 const fullPublicUrl = computed(() => `${window.location.origin}${publicUrl.value}`)
 const activeQuestionTab = computed(() => questionTabs.find((tab) => tab.id === questionStatusTab.value) || questionTabs[0])
@@ -254,17 +276,46 @@ function waitForQuestionLeave() {
   })
 }
 
-async function refreshCurrent({ silent = false } = {}) {
+function homeSectionExpired(sectionId) {
+  const state = homeSectionState[sectionId]
+  const ttl = HOME_SECTION_TTL[sectionId] ?? 0
+  return !state?.lastLoadedAt || Date.now() - state.lastLoadedAt > ttl
+}
+
+function markHomeSectionStale(...sectionIds) {
+  sectionIds.forEach((sectionId) => {
+    if (homeSectionState[sectionId]) {
+      homeSectionState[sectionId].lastLoadedAt = 0
+    }
+  })
+}
+
+async function activateHomeSection(sectionId = homeSection.value, { force = false, silent = true } = {}) {
+  const state = homeSectionState[sectionId]
+  if (!state || state.loading) return
+  if (!force && state.visited && !homeSectionExpired(sectionId)) return
+
+  state.loading = true
+  try {
+    await refreshCurrent({ silent, force, sectionId })
+    state.visited = true
+    state.lastLoadedAt = Date.now()
+  } finally {
+    state.loading = false
+  }
+}
+
+async function refreshCurrent({ silent = false, force = !silent, sectionId = homeSection.value } = {}) {
   if (!silent) refreshing.value = true
   try {
-    if (homeSection.value === 'public') {
+    if (sectionId === 'public') {
       const jobs = [loadProfile(), loadStats()]
-      if (!silent) jobs.push(publicContentRef.value?.refreshPublicContent?.() ?? Promise.resolve())
+      if (force) jobs.push(publicContentRef.value?.refreshPublicContent?.() ?? Promise.resolve())
       await Promise.all(jobs)
       return
     }
-    if (homeSection.value === 'mine') {
-      await Promise.all([loadProfile(), loadStats()])
+    if (sectionId === 'mine') {
+      await Promise.all([loadProfile(), loadStats(), loadTopics()])
       return
     }
     await Promise.all([loadActivePage(true), loadStats()])
@@ -274,7 +325,7 @@ async function refreshCurrent({ silent = false } = {}) {
 }
 
 async function handlePullRefresh() {
-  await refreshCurrent({ silent: false })
+  await activateHomeSection(homeSection.value, { force: true, silent: false })
 }
 
 function stopPolling() {
@@ -295,7 +346,7 @@ function handleVisibilityChange() {
     stopPolling()
     return
   }
-  refreshCurrent({ silent: true })
+  activateHomeSection(homeSection.value, { force: false, silent: true })
   startPolling()
 }
 
@@ -322,6 +373,7 @@ async function publishSelected() {
   showToast('回答已发布')
   loadHistory('PUBLISHED', true)
   loadStats()
+  markHomeSectionStale('public', 'mine')
 }
 
 async function dismissSelected() {
@@ -335,6 +387,7 @@ async function dismissSelected() {
   showToast('问题已驳回')
   loadHistory('DISMISSED', true)
   loadStats()
+  markHomeSectionStale('mine')
 }
 
 async function deleteSelected() {
@@ -358,6 +411,7 @@ async function deleteSelected() {
   selectedQuestion.value = null
   showToast('已删除')
   await Promise.all([loadStats(), publicContentRef.value?.refreshPublicContent?.() ?? Promise.resolve()])
+  markHomeSectionStale('public', 'mine')
 }
 
 function profilePayload(extra = {}) {
@@ -384,6 +438,7 @@ async function saveProfile() {
     await handleUpdateProfile(profilePayload())
     boxSettingsOpen.value = false
     showToast('设置已保存')
+    markHomeSectionStale('public', 'mine')
   } catch (error) {
     showToast(error?.message || '保存失败')
   }
@@ -399,6 +454,7 @@ async function handleBackgroundFile(event) {
     const objectKey = await uploadAttachmentObject(file, 'BOX_BACKGROUND')
     await handleUpdateProfile(profilePayload({ backgroundObjectKey: objectKey }))
     showToast('背景已更新')
+    markHomeSectionStale('public', 'mine')
   } catch (error) {
     showToast(error?.message || '背景上传失败')
   } finally {
@@ -410,6 +466,7 @@ async function clearBackground() {
   try {
     await handleUpdateProfile(profilePayload({ backgroundObjectKey: '' }))
     showToast('已使用默认背景')
+    markHomeSectionStale('public', 'mine')
   } catch (error) {
     showToast(error?.message || '清空失败')
   }
@@ -450,6 +507,7 @@ async function handleAccountAvatarFile(event) {
     await auth.updateProfile({ displayName: accountDraft.displayName || accountName.value, avatarObjectKey: objectKey })
     await loadProfile()
     showToast('头像已更新')
+    markHomeSectionStale('public', 'mine')
   } catch (error) {
     showToast(error?.message || '头像上传失败')
   } finally {
@@ -464,6 +522,7 @@ async function saveAccountProfile() {
     await loadProfile()
     accountSheetOpen.value = false
     showToast('账号资料已保存')
+    markHomeSectionStale('mine')
   } catch (error) {
     showToast(error?.message || '保存失败')
   }
@@ -495,6 +554,7 @@ async function saveEmail() {
     await auth.changeEmail(emailDraft.email, emailDraft.code)
     emailSheetOpen.value = false
     showToast('邮箱已更新')
+    markHomeSectionStale('mine')
   } catch (error) {
     showToast(error?.message || '更新失败')
   } finally {
@@ -515,6 +575,19 @@ function handleLogout() {
   confirmLogout()
 }
 
+function changeHomeSection(sectionId) {
+  const section = homeSections.find((item) => item.id === sectionId)
+  if (!section || section.id === homeSection.value) return
+  router.replace(section.path)
+}
+
+function homeSectionClass(sectionId) {
+  return {
+    active: homeSection.value === sectionId,
+    leaving: previousHomeSection.value === sectionId,
+  }
+}
+
 function avatarSrc(avatar) {
   if (!avatar) return ''
   return assetSrc(avatar)
@@ -530,28 +603,33 @@ function questionTime(question) {
   return question?.ts ? formatTime(question.ts) : question?.time
 }
 
-watch(homeSection, () => {
+watch(homeSection, (sectionId, oldSectionId) => {
+  previousHomeSection.value = oldSectionId || ''
+  window.clearTimeout(homeSectionLeaveTimer)
+  homeSectionLeaveTimer = window.setTimeout(() => {
+    previousHomeSection.value = ''
+  }, prefersReducedMotion() ? 0 : 340)
   selectedQuestion.value = null
   detailOpen.value = false
   answerText.value = ''
-  if (homeSection.value === 'public') {
-    startPolling()
-    return
-  }
-  if (homeSection.value === 'inbox') {
-    refreshCurrent({ silent: true })
-    startPolling()
-    return
-  }
-  refreshCurrent({ silent: true })
+  activateHomeSection(sectionId, { force: false, silent: true })
   startPolling()
 })
 
+watch(
+  homeSection,
+  (sectionId) => {
+    const nextIndex = Math.max(0, homeSections.findIndex((section) => section.id === sectionId))
+    homeSectionTransitionName.value = nextIndex < lastHomeSectionIndex.value ? 'ubuntu-route-back' : 'ubuntu-route-forward'
+    lastHomeSectionIndex.value = nextIndex
+  },
+  { flush: 'sync' },
+)
+
 onMounted(async () => {
   try {
-    await Promise.all([auth.ensureUser(), loadProfile(), loadStats(), loadPending(true), loadTopics()])
+    await auth.ensureUser()
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    startPolling()
   } catch {
     // errors are surfaced by the API interceptor
   }
@@ -559,12 +637,14 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopPolling()
+  window.clearTimeout(homeSectionLeaveTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
 <template>
   <main class="classic-owner classic-page classic-enter">
+    <router-view />
     <van-nav-bar fixed placeholder safe-area-inset-top>
       <template #title>
         <span class="nav-title">{{ pageTitle }}</span>
@@ -585,8 +665,16 @@ onBeforeUnmount(() => {
       </template>
     </van-nav-bar>
 
-    <section class="owner-body">
-      <section v-show="homeSection === 'public'" class="home-section public-section">
+    <section
+      class="owner-body"
+      :class="homeSectionTransitionName === 'ubuntu-route-back' ? 'home-section-back' : 'home-section-forward'"
+    >
+      <ClassicHomePage
+        name="public"
+        class="home-section public-section"
+        :class="homeSectionClass('public')"
+        :aria-hidden="homeSection !== 'public'"
+      >
         <ClassicAskBoxPage
           v-if="boxProfile.slug"
           ref="publicContentRef"
@@ -598,9 +686,14 @@ onBeforeUnmount(() => {
           <van-loading size="18" />
           <span>加载公开页</span>
         </div>
-      </section>
+      </ClassicHomePage>
 
-      <section v-show="homeSection === 'inbox'" class="home-section inbox-section">
+      <ClassicHomePage
+        name="inbox"
+        class="home-section inbox-section"
+        :class="homeSectionClass('inbox')"
+        :aria-hidden="homeSection !== 'inbox'"
+      >
         <van-tabs v-model:active="questionStatusIndex" animated swipeable class="owner-tabs">
           <van-tab v-for="tab in questionTabs" :key="tab.id" :title="tab.label" />
         </van-tabs>
@@ -621,9 +714,14 @@ onBeforeUnmount(() => {
             />
           </section>
         </van-pull-refresh>
-      </section>
+      </ClassicHomePage>
 
-      <section v-show="homeSection === 'mine'" class="home-section mine-section">
+      <ClassicHomePage
+        name="mine"
+        class="home-section mine-section"
+        :class="homeSectionClass('mine')"
+        :aria-hidden="homeSection !== 'mine'"
+      >
         <button class="mine-identity classic-card classic-press" type="button" @click="openAccountSheet">
           <span class="profile-avatar" :style="avatarStyle(accountAvatar)">
             <img v-if="avatarSrc(accountAvatar)" :src="avatarSrc(accountAvatar)" alt="" />
@@ -680,9 +778,9 @@ onBeforeUnmount(() => {
         </section>
 
         <button class="logout-button" type="button" @click="handleLogout">退出登录</button>
-      </section>
+      </ClassicHomePage>
 
-      <van-tabbar v-model="homeSection" class="owner-tabbar" safe-area-inset-bottom>
+      <van-tabbar :model-value="homeSection" class="owner-tabbar" safe-area-inset-bottom @change="changeHomeSection">
         <van-tabbar-item v-for="section in homeSections" :key="section.id" :name="section.id">
           <span>{{ section.label }}</span>
           <template #icon>
@@ -919,7 +1017,42 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0 0 4px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0) scale(0.985);
+  transition:
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 240ms ease;
   overscroll-behavior: contain;
+  will-change: transform, opacity;
+}
+
+.home-section.active {
+  z-index: 2;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.home-section.leaving {
+  z-index: 1;
+  opacity: 0;
+}
+
+.home-section-forward .home-section:not(.active):not(.leaving) {
+  transform: translate3d(42px, 0, 0) scale(0.985);
+}
+
+.home-section-forward .home-section.leaving {
+  transform: translate3d(-30px, 0, 0) scale(0.975);
+}
+
+.home-section-back .home-section:not(.active):not(.leaving) {
+  transform: translate3d(-42px, 0, 0) scale(0.985);
+}
+
+.home-section-back .home-section.leaving {
+  transform: translate3d(30px, 0, 0) scale(0.975);
 }
 
 .public-section {

@@ -341,14 +341,46 @@ watch(topicStatusTab, (status) => {
   will-change: width, height;
 }
 
+.topic-composer-morph::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 60px;
+  left: 0;
+  z-index: 0;
+  height: var(--topic-composer-surface-height);
+  border-radius: 22px;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.08),
+    0 18px 42px rgba(15, 23, 42, 0.18),
+    0 34px 78px rgba(15, 23, 42, 0.16);
+  transform: translate3d(0, 12px, 0) scale(0.96);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 180ms ease,
+    transform 260ms var(--classic-ease);
+}
+
 .topic-composer-morph.open {
   width: min(calc(100vw - 32px), 520px);
   height: var(--topic-composer-open-height);
   animation: topic-composer-shell-open 540ms linear both;
 }
 
+.topic-composer-morph.open::before {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
 .topic-composer-morph.touched:not(.open) {
   animation: topic-composer-shell-close 280ms linear both;
+}
+
+.topic-composer-morph.touched:not(.open)::before {
+  opacity: 0;
+  transform: translate3d(0, 10px, 0) scale(0.96);
 }
 
 .topic-composer-surface {
@@ -368,7 +400,7 @@ watch(topicStatusTab, (status) => {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 252, 0.98)),
     #fff;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   clip-path: inset(100% 42% 0 42% round 24px);
   opacity: 0;
   pointer-events: none;
@@ -818,6 +850,7 @@ watch(topicStatusTab, (status) => {
 
 @media (prefers-reduced-motion: reduce) {
   .topic-composer-morph,
+  .topic-composer-morph::before,
   .topic-composer-morph.open,
   .topic-composer-morph.touched:not(.open),
   .topic-composer-surface,

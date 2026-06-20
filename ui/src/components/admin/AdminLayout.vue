@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLogoutConfirm } from '@/composables/useLogoutConfirm'
@@ -8,6 +8,8 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const { confirmLogout } = useLogoutConfirm()
+const lastAdminRouteIndex = ref(0)
+const adminRouteTransitionName = ref('ubuntu-route-forward')
 
 const tabs = [
   { path: '/admin/dashboard', icon: 'ri-dashboard-3-line', label: '仪表盘' },
@@ -25,12 +27,27 @@ const activeIdx = computed(() => {
   return idx >= 0 ? idx : 0
 })
 
+lastAdminRouteIndex.value = activeIdx.value
+
+watch(
+  activeIdx,
+  (idx) => {
+    adminRouteTransitionName.value = idx < lastAdminRouteIndex.value ? 'ubuntu-route-back' : 'ubuntu-route-forward'
+    lastAdminRouteIndex.value = idx
+  },
+  { flush: 'sync' },
+)
+
 function onChange(idx) {
   router.replace(tabs[idx].path)
 }
 
 function handleLogout() {
   confirmLogout()
+}
+
+function refreshRouteEffects() {
+  window.dispatchEvent(new Event('resize'))
 }
 </script>
 
@@ -62,7 +79,11 @@ function handleLogout() {
 
     <!-- 内容区 -->
     <div class="admin-body">
-      <router-view />
+      <router-view v-slot="{ Component, route: childRoute }">
+        <Transition :name="adminRouteTransitionName" mode="out-in" @after-enter="refreshRouteEffects">
+          <component :is="Component" :key="childRoute.name || childRoute.path" class="route-page admin-route-page" />
+        </Transition>
+      </router-view>
     </div>
 
     <!-- 底部 Tabbar -->

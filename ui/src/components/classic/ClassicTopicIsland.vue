@@ -23,18 +23,26 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 
 const open = ref(false)
+const islandPulse = ref('')
 const rootRef = ref(null)
+let pulseTimer = 0
 
 const selectedTopic = computed(() => props.topics.find((topic) => topic.code === props.modelValue) || null)
 const islandLabel = computed(() => selectedTopic.value?.title || props.label)
 
 function close() {
+  if (open.value) playPulse('closing', 260)
   open.value = false
 }
 
 function toggle() {
   if (props.disabled || !props.topics.length) return
-  open.value = !open.value
+  if (open.value) {
+    close()
+    return
+  }
+  playPulse('opening', 360)
+  open.value = true
 }
 
 function select(code) {
@@ -53,6 +61,14 @@ function handleKeydown(event) {
   if (event.key === 'Escape') close()
 }
 
+function playPulse(name, duration) {
+  window.clearTimeout(pulseTimer)
+  islandPulse.value = name
+  pulseTimer = window.setTimeout(() => {
+    islandPulse.value = ''
+  }, duration)
+}
+
 watch(open, (value) => {
   if (value) {
     document.addEventListener('pointerdown', handleDocumentPointerDown, true)
@@ -64,13 +80,19 @@ watch(open, (value) => {
 })
 
 onBeforeUnmount(() => {
+  window.clearTimeout(pulseTimer)
   document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
 <template>
-  <nav ref="rootRef" class="topic-island" :class="{ open, selected: selectedTopic }" aria-label="话题筛选">
+  <nav
+    ref="rootRef"
+    class="topic-island"
+    :class="{ open, selected: selectedTopic, opening: islandPulse === 'opening', closing: islandPulse === 'closing' }"
+    aria-label="话题筛选"
+  >
     <button
       class="topic-island__button"
       type="button"
@@ -114,14 +136,34 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .topic-island {
+  --island-width: 74px;
+  --island-pulse-width: 74px;
+  --island-open-width: 184px;
   position: relative;
   z-index: 8;
   justify-self: center;
-  width: 74px;
+  display: flex;
+  justify-content: center;
+  width: var(--island-open-width);
   min-height: 34px;
   border-radius: 999px;
+}
+
+.topic-island__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--island-width);
+  min-height: 34px;
+  border: 1px solid rgba(31, 41, 55, 0.1);
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.94);
+  color: var(--classic-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  padding: 0 11px;
   transition:
     width 360ms cubic-bezier(0.2, 0.92, 0.2, 1.12),
     border-radius 320ms cubic-bezier(0.2, 0.92, 0.2, 1),
@@ -129,11 +171,20 @@ onBeforeUnmount(() => {
 }
 
 .topic-island.selected {
-  width: 124px;
+  --island-width: 124px;
+  --island-pulse-width: 124px;
 }
 
 .topic-island.open {
-  box-shadow: none;
+  --island-width: 184px;
+}
+
+.topic-island.opening .topic-island__button {
+  animation: topic-island-button-open 360ms cubic-bezier(0.18, 0.96, 0.22, 1.14) both;
+}
+
+.topic-island.closing .topic-island__button {
+  animation: topic-island-button-close 260ms cubic-bezier(0.3, 0.78, 0.28, 1.12) both;
 }
 
 .topic-island.open .topic-island__button {
@@ -144,22 +195,6 @@ onBeforeUnmount(() => {
 
 .topic-island.open .topic-island__button-text {
   opacity: 0;
-}
-
-.topic-island__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 34px;
-  border: 1px solid rgba(31, 41, 55, 0.1);
-  border-radius: inherit;
-  padding: 0 11px;
-  background: transparent;
-  color: var(--classic-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .topic-island__button-text {
@@ -256,12 +291,12 @@ onBeforeUnmount(() => {
 @keyframes topic-island-in {
   0% {
     opacity: 0;
-    transform: translate3d(-50%, -4px, 0) scale3d(0.34, 0.22, 1);
+    transform: translate3d(-50%, 0, 0) scale3d(0.76, 0.28, 1);
   }
 
   58% {
     opacity: 1;
-    transform: translate3d(-50%, 0, 0) scale3d(1.025, 1.045, 1);
+    transform: translate3d(-50%, 0, 0) scale3d(1.018, 1.035, 1);
   }
 
   78% {
@@ -286,18 +321,59 @@ onBeforeUnmount(() => {
   }
 }
 
+@keyframes topic-island-button-open {
+  0% {
+    width: var(--island-pulse-width);
+  }
+
+  38% {
+    width: calc(var(--island-width) + 18px);
+  }
+
+  68% {
+    width: calc(var(--island-width) - 4px);
+  }
+
+  100% {
+    width: var(--island-width);
+  }
+}
+
+@keyframes topic-island-button-close {
+  0% {
+    width: var(--island-open-width);
+  }
+
+  42% {
+    width: calc(var(--island-pulse-width) + 22px);
+  }
+
+  100% {
+    width: var(--island-width);
+  }
+}
+
 @media (max-width: 430px) {
   .topic-island {
-    width: 64px;
+    --island-width: 64px;
+    --island-pulse-width: 64px;
+    --island-open-width: 168px;
   }
 
   .topic-island.selected {
-    width: 112px;
+    --island-width: 112px;
+    --island-pulse-width: 112px;
+  }
+
+  .topic-island.open {
+    --island-width: 168px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .topic-island,
+  .topic-island.opening .topic-island__button,
+  .topic-island.closing .topic-island__button,
   .topic-island__menu {
     animation: none;
     transition: none;

@@ -39,6 +39,11 @@ body {
   animation: classic-page-in 420ms var(--classic-ease) both;
 }
 
+.route-stage .classic-enter,
+.admin-body .classic-enter {
+  animation: none;
+}
+
 .classic-card {
   position: relative;
   border: 1px solid rgba(227, 233, 242, 0.92);
