@@ -3,6 +3,7 @@ package cn.xiuxius.askbox.question.entity;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -33,6 +34,6 @@ public class QuestionReplyTokenEntity implements Serializable {
     @TableField("used_at")
     private OffsetDateTime usedAt;
 
-    @TableField("created_at")
+    @TableField(value = "created_at", fill = FieldFill.INSERT)
     private OffsetDateTime createdAt;
 }

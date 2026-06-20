@@ -3,6 +3,8 @@ package cn.xiuxius.askbox.system.setting.entity;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -22,5 +24,7 @@ public class SysSettingEntity implements Serializable {
     private String label;
     private String description;
     private Boolean isSecret;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private OffsetDateTime updatedAt;
 }

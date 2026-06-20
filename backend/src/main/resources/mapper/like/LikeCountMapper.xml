@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.xiuxius.askbox.like.mapper.LikeCountMapper">
+
+    <insert id="upsert">
+        INSERT INTO like_counts (target_type, target_id, like_count, created_at, updated_at)
+        VALUES (#{targetType}, #{targetId}, #{likeCount}, #{createdAt}, #{updatedAt})
+        ON CONFLICT (target_type, target_id)
+        DO UPDATE SET like_count = EXCLUDED.like_count,
+                      updated_at = EXCLUDED.updated_at
+    </insert>
+</mapper>

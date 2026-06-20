@@ -3,6 +3,7 @@ package cn.xiuxius.askbox.answer.entity;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -31,5 +32,6 @@ public class AnswerEntity implements Serializable {
     @TableField("user_agent")
     private String userAgent;
 
+    @TableField(fill = FieldFill.INSERT)
     private OffsetDateTime createdAt;
 }

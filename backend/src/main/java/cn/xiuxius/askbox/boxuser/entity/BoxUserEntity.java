@@ -3,6 +3,7 @@ package cn.xiuxius.askbox.boxuser.entity;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -33,6 +34,9 @@ public class BoxUserEntity implements Serializable {
     @TableField("email_notify_enabled")
     private Boolean emailNotifyEnabled;
 
+    @TableField(fill = FieldFill.INSERT)
     private OffsetDateTime createdAt;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private OffsetDateTime updatedAt;
 }

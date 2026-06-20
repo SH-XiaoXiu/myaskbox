@@ -3,7 +3,6 @@ package cn.xiuxius.askbox.system.repository;
 import org.springframework.stereotype.Repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import cn.xiuxius.askbox.system.entity.SysUserEntity;
@@ -24,14 +23,16 @@ public class SysUserRepository {
         if (username == null || username.isBlank()) {
             return null;
         }
-        return mapper.selectOne(new QueryWrapper<SysUserEntity>().apply("lower(username) = lower({0})", username));
+        return mapper.selectOne(new LambdaQueryWrapper<SysUserEntity>()
+                .eq(SysUserEntity::getUsername, username.trim().toLowerCase()));
     }
 
     public SysUserEntity findByEmail(String email) {
         if (email == null || email.isBlank()) {
             return null;
         }
-        return mapper.selectOne(new QueryWrapper<SysUserEntity>().apply("lower(email) = lower({0})", email));
+        return mapper.selectOne(new LambdaQueryWrapper<SysUserEntity>()
+                .eq(SysUserEntity::getEmail, email.trim().toLowerCase()));
     }
 
     public IPage<SysUserEntity> page(IPage<SysUserEntity> page, String keyword) {

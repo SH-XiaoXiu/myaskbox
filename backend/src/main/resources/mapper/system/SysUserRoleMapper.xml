@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.xiuxius.askbox.system.mapper.SysUserRoleMapper">
+
+    <select id="selectRoleCodesByUserId" resultType="string">
+        SELECT r.code
+        FROM sys_user_role ur
+        JOIN sys_role r ON r.id = ur.role_id
+        WHERE ur.user_id = #{userId}
+    </select>
+
+    <select id="selectPermissionCodesByUserId" resultType="string">
+        SELECT DISTINCT p.code
+        FROM sys_user_role ur
+        JOIN sys_role_permission rp ON rp.role_id = ur.role_id
+        JOIN sys_permission p ON p.id = rp.permission_id
+        WHERE ur.user_id = #{userId}
+    </select>
+
+    <select id="selectAllPermissionCodes" resultType="string">
+        SELECT code
+        FROM sys_permission
+        WHERE type = 'ACTION'
+    </select>
+
+    <insert id="insertUserRoles">
+        INSERT INTO sys_user_role (user_id, role_id)
+        VALUES
+        <foreach collection="roleIds" item="roleId" separator=",">
+            (#{userId}, #{roleId})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByUserId">
+        DELETE FROM sys_user_role
+        WHERE user_id = #{userId}
+    </delete>
+
+    <select id="countActiveUsersByRole" resultType="int">
+        SELECT COUNT(DISTINCT ur.user_id)
+        FROM sys_user_role ur
+        JOIN sys_role r ON r.id = ur.role_id
+        JOIN sys_user u ON u.id = ur.user_id
+        WHERE r.code = #{roleCode}
+          AND u.status = 'ACTIVE'
+    </select>
+
+    <select id="countUsersByRoleCode" resultType="int">
+        SELECT COUNT(DISTINCT ur.user_id)
+        FROM sys_user_role ur
+        JOIN sys_role r ON r.id = ur.role_id
+        WHERE r.code = #{roleCode}
+    </select>
+</mapper>
