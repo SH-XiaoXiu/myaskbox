@@ -20,7 +20,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'change'])
+const emit = defineEmits(['update:modelValue', 'change', 'dismiss'])
 
 const open = ref(false)
 const islandPulse = ref('')
@@ -33,6 +33,12 @@ const islandLabel = computed(() => selectedTopic.value?.title || props.label)
 function close() {
   if (open.value) playPulse('closing', 260)
   open.value = false
+}
+
+function dismiss() {
+  if (!open.value) return
+  close()
+  emit('dismiss')
 }
 
 function toggle() {
@@ -51,12 +57,6 @@ function select(code) {
   close()
 }
 
-function handleDocumentPointerDown(event) {
-  if (!open.value) return
-  const root = rootRef.value
-  if (root && !root.contains(event.target)) close()
-}
-
 function handleKeydown(event) {
   if (event.key === 'Escape') close()
 }
@@ -71,17 +71,14 @@ function playPulse(name, duration) {
 
 watch(open, (value) => {
   if (value) {
-    document.addEventListener('pointerdown', handleDocumentPointerDown, true)
     document.addEventListener('keydown', handleKeydown)
   } else {
-    document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
     document.removeEventListener('keydown', handleKeydown)
   }
 })
 
 onBeforeUnmount(() => {
   window.clearTimeout(pulseTimer)
-  document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>
@@ -93,6 +90,15 @@ onBeforeUnmount(() => {
     :class="{ open, selected: selectedTopic, opening: islandPulse === 'opening', closing: islandPulse === 'closing' }"
     aria-label="话题筛选"
   >
+    <button
+      v-if="open"
+      class="topic-island__scrim"
+      type="button"
+      aria-label="关闭话题筛选"
+      @pointerdown.stop
+      @click.stop.prevent="dismiss"
+    ></button>
+
     <button
       class="topic-island__button"
       type="button"
@@ -150,6 +156,8 @@ onBeforeUnmount(() => {
 }
 
 .topic-island__button {
+  position: relative;
+  z-index: 22;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -168,6 +176,16 @@ onBeforeUnmount(() => {
     width 360ms cubic-bezier(0.2, 0.92, 0.2, 1.12),
     border-radius 320ms cubic-bezier(0.2, 0.92, 0.2, 1),
     box-shadow 280ms ease;
+}
+
+.topic-island__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
 }
 
 .topic-island.selected {
@@ -211,7 +229,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   left: 50%;
-  z-index: 20;
+  z-index: 23;
   display: grid;
   gap: 4px;
   width: min(240px, calc(100vw - 32px));

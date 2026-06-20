@@ -820,6 +820,15 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
+    <button
+      v-if="showComposer && !boxMissing && composerOpen"
+      class="composer-dismiss-layer"
+      type="button"
+      aria-label="关闭提问框"
+      @pointerdown.stop
+      @click.stop.prevent="closeComposer()"
+    ></button>
+
     <section
       v-if="showComposer && !boxMissing"
       class="composer-morph"
@@ -1311,6 +1320,16 @@ time,
   transform-origin: 50% 100%;
   pointer-events: none;
   will-change: width, height;
+}
+
+.composer-dismiss-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
 }
 
 .composer-morph::before {
