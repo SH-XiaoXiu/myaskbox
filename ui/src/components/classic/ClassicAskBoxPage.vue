@@ -67,7 +67,9 @@ const content = ref('')
 const sending = ref(false)
 const receiptMessage = ref('')
 const headCollapsed = ref(false)
+const topicIslandOpen = ref(false)
 const listRef = ref(null)
+const topicIslandRef = ref(null)
 const ownerAvatarRef = ref(null)
 const sendButtonRef = ref(null)
 const avatarPickerRef = ref(null)
@@ -219,6 +221,11 @@ async function resolveInitialTopic(token = loadRequestToken) {
 
 function selectTopic(code) {
   selectedTopicCode.value = code
+}
+
+function closeTopicIslandOverlay() {
+  topicIslandRef.value?.dismiss?.()
+  topicIslandOpen.value = false
 }
 
 async function selectFilterTopic(code) {
@@ -647,6 +654,7 @@ async function resetAndLoadPublicContent({ preserveList = false, animateList = t
   pageError.value = ''
   boxMissing.value = false
   headCollapsed.value = false
+  topicIslandOpen.value = false
   if (boxProfile.value.slug !== slug.value) {
     boxProfile.value = { slug: slug.value, displayName: '', ownerDisplayName: '', description: '', avatar: null }
   }
@@ -782,12 +790,23 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <ClassicTopicIsland
+        ref="topicIslandRef"
         :model-value="filterTopicCode"
         :topics="publicTopics"
         @change="selectFilterTopic"
+        @open-change="topicIslandOpen = $event"
       />
       <p class="ask-meta">{{ qaTotal }}条</p>
     </header>
+
+    <button
+      v-if="!boxMissing && topicIslandOpen"
+      class="topic-island-page-guard"
+      type="button"
+      aria-label="关闭话题筛选"
+      @pointerdown.stop
+      @click.stop.prevent="closeTopicIslandOverlay"
+    ></button>
 
     <div v-if="!boxMissing" ref="listRef" class="ask-scroll" @scroll="handleScroll">
       <van-pull-refresh
@@ -1209,6 +1228,16 @@ onBeforeUnmount(() => {
   opacity: 0;
   filter: blur(2px);
   transform: translate3d(28px, -2px, 0) scale(0.96);
+}
+
+.topic-island-page-guard {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
 }
 
 .ask-head :deep(.topic-island) {
@@ -2349,18 +2378,6 @@ time,
 .receipt-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(8px);
-}
-
-@media (max-width: 430px) {
-  .ask-head {
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .ask-meta {
-    align-self: center;
-    font-size: 11px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

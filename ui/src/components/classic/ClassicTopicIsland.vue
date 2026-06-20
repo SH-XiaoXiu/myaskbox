@@ -20,7 +20,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update:modelValue', 'change', 'dismiss'])
+const emit = defineEmits(['update:modelValue', 'change', 'dismiss', 'open-change'])
 
 const open = ref(false)
 const islandPulse = ref('')
@@ -75,11 +75,17 @@ function playPulse(name, duration) {
 }
 
 watch(open, (value) => {
+  emit('open-change', value)
   if (value) {
     document.addEventListener('keydown', handleKeydown)
   } else {
     document.removeEventListener('keydown', handleKeydown)
   }
+})
+
+defineExpose({
+  close,
+  dismiss,
 })
 
 onBeforeUnmount(() => {
@@ -102,17 +108,6 @@ onBeforeUnmount(() => {
     }"
     aria-label="话题筛选"
   >
-    <Teleport to="body">
-      <button
-        v-if="open"
-        class="topic-island__scrim"
-        type="button"
-        aria-label="关闭话题筛选"
-        @pointerdown.stop
-        @click.stop.prevent="dismiss"
-      ></button>
-    </Teleport>
-
     <button
       class="topic-island__button"
       type="button"
@@ -194,16 +189,6 @@ onBeforeUnmount(() => {
     box-shadow 280ms ease;
 }
 
-:global(.topic-island__scrim) {
-  position: fixed;
-  inset: 0;
-  z-index: 19;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: default;
-}
-
 .topic-island.selected {
   --island-width: 124px;
   --island-pulse-width: 124px;
@@ -255,7 +240,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   left: 50%;
-  z-index: 23;
+  z-index: 24;
   display: grid;
   gap: 4px;
   width: min(240px, calc(100vw - 32px));
