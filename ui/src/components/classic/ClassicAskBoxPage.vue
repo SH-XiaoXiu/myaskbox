@@ -823,16 +823,14 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
-    <Teleport to="body">
-      <button
-        v-if="showComposer && !boxMissing && composerOpen"
-        class="composer-dismiss-layer"
-        type="button"
-        aria-label="关闭提问框"
-        @pointerdown.stop
-        @click.stop.prevent="closeComposer()"
-      ></button>
-    </Teleport>
+    <button
+      v-if="showComposer && !boxMissing && composerOpen"
+      class="composer-dismiss-layer"
+      type="button"
+      aria-label="关闭提问框"
+      @pointerdown.stop
+      @click.stop.prevent="closeComposer()"
+    ></button>
 
     <section
       v-if="showComposer && !boxMissing"
@@ -1385,7 +1383,7 @@ time,
   will-change: width, height;
 }
 
-:global(.composer-dismiss-layer) {
+.composer-dismiss-layer {
   position: fixed;
   inset: 0;
   z-index: 29;
