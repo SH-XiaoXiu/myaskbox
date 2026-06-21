@@ -127,8 +127,9 @@ const displayedQuestions = computed(() => {
   return []
 })
 const visibleQuestions = computed(() => (questionListExiting.value ? [] : displayedQuestions.value))
-const selectedIsPending = computed(() => questionStatusTab.value === 'pending' && !selectedQuestion.value?.answer && selectedQuestion.value)
-const selectedIsPublished = computed(() => !!selectedQuestion.value?.answer)
+const selectedIsPending = computed(() => questionStatusTab.value === 'pending' && !!selectedQuestion.value)
+const selectedIsPublished = computed(() => questionStatusTab.value === 'published' && !!selectedQuestion.value)
+const selectedIsDismissed = computed(() => questionStatusTab.value === 'dismissed' && !!selectedQuestion.value)
 const selectedCanDelete = computed(() => !!selectedQuestion.value && !selectedIsPending.value)
 const answerCount = computed(() => `${answerText.value.length} / 5000`)
 const canPublish = computed(() => answerText.value.trim().length > 0)
@@ -939,7 +940,7 @@ onBeforeUnmount(() => {
             <small>内容由AI生成，仅供娱乐</small>
           </section>
 
-          <section v-else class="published-answer muted">
+          <section v-if="selectedIsDismissed" class="published-answer muted">
             <span>已驳回</span>
             <p>这个问题不会显示在公开页。</p>
           </section>

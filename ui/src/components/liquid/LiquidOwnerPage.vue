@@ -218,6 +218,9 @@ const selectedIsPending = computed(
 const selectedIsPublished = computed(
   () => activeTab.value === "published" && selectedQuestion.value,
 );
+const selectedIsDismissed = computed(
+  () => activeTab.value === "dismissed" && selectedQuestion.value,
+);
 const selectedIsReadOnly = computed(
   () => (activeTab.value === "published" || activeTab.value === "dismissed") && selectedQuestion.value,
 );
@@ -876,7 +879,7 @@ onBeforeUnmount(() => {
           <p>{{ selectedQuestion.answer }}</p>
         </section>
 
-        <section v-else class="published-answer muted">
+        <section v-else-if="selectedIsDismissed" class="published-answer muted">
           <span>已驳回</span>
           <p>这个问题不会显示在公开页，可以在后续接入真实接口后增加恢复或删除操作。</p>
         </section>
