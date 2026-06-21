@@ -106,4 +106,21 @@ public class QuestionRepository {
                         .eq(QuestionEntity::getStatus, status)
                         .orderByDesc(QuestionEntity::getCreatedAt));
     }
+
+    public java.util.List<QuestionEntity> findRecentPublishedCandidates(
+            Long boxUserId, Long excludeQuestionId, Long topicId, int limit) {
+        LambdaQueryWrapper<QuestionEntity> wrapper = new LambdaQueryWrapper<QuestionEntity>()
+                .eq(QuestionEntity::getBoxUserId, boxUserId)
+                .eq(QuestionEntity::getStatus, QuestionStatus.PUBLISHED);
+        if (excludeQuestionId != null) {
+            wrapper.ne(QuestionEntity::getId, excludeQuestionId);
+        }
+        if (topicId != null) {
+            wrapper.orderByDesc(QuestionEntity::getTopicId, QuestionEntity::getCreatedAt);
+        } else {
+            wrapper.orderByDesc(QuestionEntity::getCreatedAt);
+        }
+        wrapper.last("LIMIT " + Math.max(1, limit));
+        return mapper.selectList(wrapper);
+    }
 }

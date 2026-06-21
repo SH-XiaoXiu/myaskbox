@@ -27,12 +27,16 @@ val palantirJavaFormatVersion = "2.50.0"
 val bucket4jVersion = "8.19.0"
 val hutoolVersion = "5.8.46"
 val minioVersion = "9.0.3"
+val springAiVersion = "1.0.9"
 
 dependencies {
+    implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
+
     // Web
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-mail")
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
 
     // MyBatis-Plus
     implementation("com.baomidou:mybatis-plus-spring-boot3-starter:$mybatisPlusVersion")

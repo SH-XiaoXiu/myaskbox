@@ -11,7 +11,12 @@ public final class BoxUserAssembler {
     private BoxUserAssembler() {}
 
     public static BoxProfileView toProfileView(
-            BoxUserEntity entity, String ownerDisplayName, AttachmentView avatar, AttachmentView background) {
+            BoxUserEntity entity,
+            String ownerDisplayName,
+            AttachmentView avatar,
+            AttachmentView background,
+            Integer topicActiveLimit,
+            Boolean aiReviewEnabled) {
         if (entity == null) {
             return null;
         }
@@ -25,6 +30,8 @@ public final class BoxUserAssembler {
                 avatar,
                 background,
                 entity.getEmailNotifyEnabled(),
+                topicActiveLimit,
+                aiReviewEnabled,
                 entity.getCreatedAt());
     }
 
@@ -42,7 +49,12 @@ public final class BoxUserAssembler {
                 background);
     }
 
-    public static BoxView toAdminView(BoxUserEntity entity, String username, long questionCount) {
+    public static BoxView toAdminView(
+            BoxUserEntity entity,
+            String username,
+            long questionCount,
+            Integer topicActiveLimit,
+            Boolean aiReviewEnabled) {
         return new BoxView(
                 entity.getId(),
                 username,
@@ -50,6 +62,8 @@ public final class BoxUserAssembler {
                 entity.getDisplayName(),
                 entity.getDescription(),
                 questionCount,
+                topicActiveLimit,
+                aiReviewEnabled,
                 entity.getCreatedAt());
     }
 }

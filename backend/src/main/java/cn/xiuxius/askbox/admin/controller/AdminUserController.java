@@ -46,8 +46,7 @@ public class AdminUserController {
     @PostMapping
     @Operation(summary = "创建用户", description = "创建系统用户，返回用户信息。")
     public R<UserView> createUser(@Valid @RequestBody AdminUserCreateRequest request) {
-        var user = sysUserService.createUser(
-                request.getEmail(), request.getPassword(), request.getDisplayName(), request.getTopicActiveLimit());
+        var user = sysUserService.createUser(request.getEmail(), request.getPassword(), request.getDisplayName(), null);
         return R.ok(sysUserService.getUserViewById(user.getId()));
     }
 
@@ -60,7 +59,7 @@ public class AdminUserController {
     @PutMapping("/{id}")
     @Operation(summary = "编辑用户")
     public R<Void> updateUser(@PathVariable Long id, @Valid @RequestBody AdminUserUpdateRequest request) {
-        sysUserService.updateUser(id, request.getDisplayName(), request.getEmail(), request.getTopicActiveLimit());
+        sysUserService.updateUser(id, request.getDisplayName(), request.getEmail(), null);
         return R.ok();
     }
 

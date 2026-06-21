@@ -217,7 +217,6 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail(),
                 user.getDisplayName(),
                 avatar,
-                user.getTopicActiveLimit() == null ? 5 : user.getTopicActiveLimit(),
                 current.roles(),
                 current.permissions());
     }

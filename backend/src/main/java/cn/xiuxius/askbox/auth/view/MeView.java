@@ -10,6 +10,5 @@ public record MeView(
         String email,
         String displayName,
         AttachmentView avatar,
-        Integer topicActiveLimit,
         Set<String> roles,
         Set<String> permissions) {}

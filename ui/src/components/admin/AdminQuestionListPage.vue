@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { showDialog, showSuccessToast } from 'vant'
-import { listAllQuestions, forceDeleteQuestion, deleteAnswer } from '@/api/admin'
+import { listAllQuestions, getQuestion, getQuestionAiReview, forceDeleteQuestion, deleteAnswer, generateAiReview } from '@/api/admin'
 import { formatTime } from '@/utils'
 
 const loading = ref(true)
@@ -90,10 +90,45 @@ async function handleDeleteAnswer(q) {
 
 const showDetail = ref(false)
 const detailQuestion = ref(null)
+const aiGenerating = ref(false)
 
-function openDetail(q) {
+async function openDetail(q) {
   detailQuestion.value = q
   showDetail.value = true
+  try {
+    detailQuestion.value = await getQuestion(q.id)
+  } catch {
+    detailQuestion.value = q
+  }
+  try {
+    detailQuestion.value.aiReview = await getQuestionAiReview(q.id)
+  } catch {
+    detailQuestion.value.aiReview = null
+  }
+}
+
+async function handleGenerateAiReview() {
+  if (!detailQuestion.value || aiGenerating.value) return
+  aiGenerating.value = true
+  try {
+    const review = await generateAiReview(detailQuestion.value.id)
+    detailQuestion.value.aiReview = review
+    const listItem = questions.value.find((item) => item.id === detailQuestion.value.id)
+    if (listItem) listItem.aiReview = review
+    showSuccessToast('AI点评任务已提交')
+  } finally {
+    aiGenerating.value = false
+  }
+}
+
+function aiReviewStatusText(review) {
+  if (!review) return '未生成'
+  const map = { PENDING: '排队中', RUNNING: '生成中', SUCCEEDED: '已生成', FAILED: '失败', SKIPPED: '已跳过' }
+  return map[review.status] || review.status || '未知'
+}
+
+function canGenerateAiReview(question) {
+  return question?.status === 'PUBLISHED' && !!question?.answer
 }
 </script>
 
@@ -135,7 +170,14 @@ function openDetail(q) {
       </div>
     </div>
 
-    <van-dialog v-model:show="showDetail" title="问题详情" :show-confirm-button="false" show-cancel-button cancel-button-text="关闭">
+    <van-dialog
+      v-model:show="showDetail"
+      class-name="question-detail-dialog"
+      title="问题详情"
+      :show-confirm-button="false"
+      show-cancel-button
+      cancel-button-text="关闭"
+    >
       <template v-if="detailQuestion">
         <div class="detail-body">
           <div class="detail-row">
@@ -163,6 +205,33 @@ function openDetail(q) {
             <span class="detail-key">回答时间</span>
             <span>{{ formatTime(detailQuestion.answeredAt) }}</span>
           </div>
+          <div class="detail-row">
+            <span class="detail-key">AI点评</span>
+            <div class="ai-review-box">
+              <div class="ai-review-head">
+                <van-tag size="medium" :type="detailQuestion.aiReview?.status === 'SUCCEEDED' ? 'success' : 'warning'">
+                  {{ aiReviewStatusText(detailQuestion.aiReview) }}
+                </van-tag>
+                <van-button
+                  v-if="canGenerateAiReview(detailQuestion)"
+                  size="small"
+                  round
+                  plain
+                  type="primary"
+                  :loading="aiGenerating"
+                  @click="handleGenerateAiReview"
+                >
+                  {{ detailQuestion.aiReview?.content ? '重新生成' : '生成点评' }}
+                </van-button>
+              </div>
+              <template v-if="detailQuestion.aiReview?.content">
+                <p class="detail-text">{{ detailQuestion.aiReview.content }}</p>
+                <p class="ai-review-disclaimer">内容由AI生成，仅供娱乐</p>
+              </template>
+              <p v-else-if="detailQuestion.aiReview?.errorMessage" class="detail-error">{{ detailQuestion.aiReview.errorMessage }}</p>
+              <span v-else class="detail-none">--</span>
+            </div>
+          </div>
           <div class="detail-actions">
             <van-button type="danger" size="small" plain round @click="handleDelete(detailQuestion); showDetail = false">删除问题</van-button>
           </div>
@@ -187,10 +256,31 @@ function openDetail(q) {
 .load-more-hint { text-align: center; padding: 14px 0 18px; color: #969799; font-size: 12px; }
 .loading-center { display: flex; justify-content: center; padding: 24px 0; }
 .error-msg { text-align: center; color: #ee0a24; padding: 24px 0; font-size: 14px; }
-.detail-body { padding: 8px 16px 16px; }
+:deep(.question-detail-dialog) {
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.question-detail-dialog .van-dialog__content) {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.detail-body {
+  max-height: calc(86vh - 108px);
+  padding: 8px 16px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .detail-row { margin-bottom: 14px; }
 .detail-key { display: block; font-size: 11px; color: #969799; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
 .detail-text { padding: 10px 12px; background: #f7f8fa; border-radius: 8px; font-size: 14px; line-height: 1.6; color: #323233; margin: 4px 0 0; }
 .detail-none { color: #c8c9cc; }
+.detail-error { color: #ee0a24; font-size: 13px; line-height: 1.5; margin: 8px 0 0; }
 .detail-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #ebedf0; }
+.ai-review-box { padding: 10px 12px; background: #fffaf0; border: 1px solid #fde7ba; border-radius: 10px; }
+.ai-review-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ai-review-box .detail-text { background: #fff; border: 1px solid #f6e7c9; }
+.ai-review-disclaimer { margin: 6px 0 0; color: #969799; font-size: 12px; }
 </style>

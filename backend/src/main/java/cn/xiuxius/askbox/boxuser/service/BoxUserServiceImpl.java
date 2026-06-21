@@ -26,6 +26,7 @@ import cn.xiuxius.askbox.question.enums.QuestionStatus;
 import cn.xiuxius.askbox.question.repository.QuestionRepository;
 import cn.xiuxius.askbox.system.entity.SysUserEntity;
 import cn.xiuxius.askbox.system.repository.SysUserRepository;
+import cn.xiuxius.askbox.usersetting.service.UserSettingService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class BoxUserServiceImpl implements BoxUserService {
     private final SysUserRepository sysUserRepository;
     private final QuestionRepository questionRepository;
     private final AttachmentService attachmentService;
+    private final UserSettingService userSettingService;
 
     @Override
     public BoxUserEntity getBySlug(String slug) {
@@ -103,7 +105,12 @@ public class BoxUserServiceImpl implements BoxUserService {
             SysUserEntity user = sysUserRepository.findById(box.getUserId());
             String username = user != null ? user.getUsername() : "unknown";
             long questionCount = questionRepository.countByBoxUserId(box.getId());
-            return BoxUserAssembler.toAdminView(box, username, questionCount);
+            return BoxUserAssembler.toAdminView(
+                    box,
+                    username,
+                    questionCount,
+                    userSettingService.getTopicActiveLimit(box.getUserId()),
+                    userSettingService.isAiReviewEnabled(box.getUserId()));
         }));
     }
 
@@ -132,10 +139,14 @@ public class BoxUserServiceImpl implements BoxUserService {
             String description,
             String avatarObjectKey,
             String backgroundObjectKey,
-            Boolean emailNotifyEnabled) {
+            Boolean emailNotifyEnabled,
+            Integer topicActiveLimit,
+            Boolean aiReviewEnabled) {
         BoxUserEntity b = getById(id);
         updateAttachments(b, avatarObjectKey, backgroundObjectKey);
-        return updateBoxEntity(b, slug, displayName, description, emailNotifyEnabled);
+        updateBoxEntity(b, slug, displayName, description, emailNotifyEnabled);
+        userSettingService.updateBoxOwnerSettings(b.getUserId(), topicActiveLimit, aiReviewEnabled);
+        return toProfileView(b);
     }
 
     private BoxProfileView updateBoxEntity(
@@ -202,7 +213,12 @@ public class BoxUserServiceImpl implements BoxUserService {
     private BoxProfileView toProfileView(BoxUserEntity b) {
         SysUserEntity user = accountOrNull(b.getUserId());
         return BoxUserAssembler.toProfileView(
-                b, displayNameOrNull(user), accountAvatarOrNull(user), attachmentOrNull(b.getBackgroundAttachmentId()));
+                b,
+                displayNameOrNull(user),
+                accountAvatarOrNull(user),
+                attachmentOrNull(b.getBackgroundAttachmentId()),
+                userSettingService.getTopicActiveLimit(b.getUserId()),
+                userSettingService.isAiReviewEnabled(b.getUserId()));
     }
 
     private PublicBoxProfileView toPublicProfileView(BoxUserEntity b) {

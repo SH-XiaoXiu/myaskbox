@@ -1,4 +1,12 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
   main:
     banner-mode: off
   application:
@@ -93,3 +101,15 @@ askbox.likes:
   cache-ttl-seconds: ${LIKE_CACHE_TTL_SECONDS:1800}
   sync-interval-ms: ${LIKE_SYNC_INTERVAL_MS:5000}
   sync-batch-size: ${LIKE_SYNC_BATCH_SIZE:200}
+
+askbox.ai:
+  enabled: ${AI_ENABLED:true}
+  base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+  api-key: ${AI_API_KEY:}
+  model: ${AI_MODEL:gpt-4.1-mini}
+  timeout-seconds: ${AI_TIMEOUT_SECONDS:60}
+  history-candidate-limit: ${AI_HISTORY_CANDIDATE_LIMIT:12}
+  popular-example-limit: ${AI_POPULAR_EXAMPLE_LIMIT:8}
+  rate-limit-capacity: ${AI_RATE_LIMIT_CAPACITY:20}
+  rate-limit-window-seconds: ${AI_RATE_LIMIT_WINDOW_SECONDS:3600}
+  circuit-breaker-seconds: ${AI_CIRCUIT_BREAKER_SECONDS:3600}

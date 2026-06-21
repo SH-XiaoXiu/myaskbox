@@ -51,6 +51,12 @@ export const getQuestion = (id) => api.get(`/admin/questions/${id}`)
 /** DELETE /api/admin/questions/{id} */
 export const forceDeleteQuestion = (id) => api.delete(`/admin/questions/${id}`)
 
+/** POST /api/admin/questions/{id}/ai-review/generate */
+export const generateAiReview = (id) => api.post(`/admin/questions/${id}/ai-review/generate`)
+
+/** GET /api/admin/questions/{id}/ai-review */
+export const getQuestionAiReview = (id) => api.get(`/admin/questions/${id}/ai-review`)
+
 // ==================== 话题管理 ====================
 
 /** GET /api/admin/topics */

@@ -94,8 +94,7 @@ public class SysUserServiceImpl implements SysUserService {
                 .setPasswordHash(BCrypt.hashpw(rawPassword, BCrypt.gensalt()))
                 .setDisplayName(displayName)
                 .setEmail(normalizedEmail)
-                .setStatus("ACTIVE")
-                .setTopicActiveLimit(normalizeTopicActiveLimit(topicActiveLimit));
+                .setStatus("ACTIVE");
         sysUserRepository.insert(user);
         assignRoles(user.getId(), List.of("BOX_OWNER"));
         log.info("User created: id={} email={}", user.getId(), normalizedEmail);
@@ -114,10 +113,7 @@ public class SysUserServiceImpl implements SysUserService {
         if (sameEmailUser != null && !sameEmailUser.getId().equals(id)) {
             throw new BizException(ErrorCodes.VALIDATION_ERROR, "邮箱已存在");
         }
-        user.setUsername(normalizedEmail)
-                .setDisplayName(displayName)
-                .setEmail(normalizedEmail)
-                .setTopicActiveLimit(normalizeTopicActiveLimit(topicActiveLimit));
+        user.setUsername(normalizedEmail).setDisplayName(displayName).setEmail(normalizedEmail);
         sysUserRepository.update(user);
     }
 
@@ -211,10 +207,6 @@ public class SysUserServiceImpl implements SysUserService {
 
     private String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private int normalizeTopicActiveLimit(Integer limit) {
-        return limit == null ? 5 : Math.max(1, limit);
     }
 
     /**

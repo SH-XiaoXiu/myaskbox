@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
+import cn.xiuxius.askbox.ai.service.AiReviewService;
+import cn.xiuxius.askbox.ai.view.AiReviewView;
 import cn.xiuxius.askbox.answer.entity.AnswerEntity;
 import cn.xiuxius.askbox.answer.service.AnswerService;
 import cn.xiuxius.askbox.attachment.enums.AttachmentUsageType;
@@ -29,6 +31,7 @@ import cn.xiuxius.askbox.like.service.LikeService;
 import cn.xiuxius.askbox.question.assembler.QuestionAssembler;
 import cn.xiuxius.askbox.question.entity.QuestionEntity;
 import cn.xiuxius.askbox.question.enums.QuestionStatus;
+import cn.xiuxius.askbox.question.event.AnswerPublishedEvent;
 import cn.xiuxius.askbox.question.event.QuestionSubmittedEvent;
 import cn.xiuxius.askbox.question.repository.QuestionRepository;
 import cn.xiuxius.askbox.question.view.AdminQuestionView;
@@ -68,6 +71,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final TopicService topicService;
     private final ApplicationEventPublisher eventPublisher;
     private final LikeService likeService;
+    private final AiReviewService aiReviewService;
 
     @Override
     @Transactional
@@ -134,6 +138,7 @@ public class QuestionServiceImpl implements QuestionService {
         q.setStatus(QuestionStatus.PUBLISHED).setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         questionRepository.update(q);
         log.info("QuestionEntity {} answered by user {}", questionId, answeredBy);
+        eventPublisher.publishEvent(new AnswerPublishedEvent(questionId));
         // 4. 返回视图（含新的答案）
         return toQuestionView(q, answer);
     }
@@ -155,6 +160,7 @@ public class QuestionServiceImpl implements QuestionService {
         QuestionEntity q = getAndValidateOwnership(boxUserId, questionId, ErrorCodes.QUESTION_NOT_FOUND);
         if (q.isPending()) throw new BizException(ErrorCodes.QUESTION_STATUS_INVALID, "待回答的问题不能删除");
         answerService.deleteByQuestionIdIfExists(questionId);
+        deleteAiReviewTarget(questionId);
         likeService.deleteTarget(LikeTargetType.QUESTION, questionId);
         questionRepository.deleteById(questionId);
         log.info("QuestionEntity {} deleted by box {}", questionId, boxUserId);
@@ -209,6 +215,7 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional
     public void forceDelete(Long questionId) {
         answerService.deleteByQuestionIdIfExists(questionId);
+        deleteAiReviewTarget(questionId);
         likeService.deleteTarget(LikeTargetType.QUESTION, questionId);
         questionRepository.deleteById(questionId);
         log.info("QuestionEntity {} force-deleted by admin", questionId);
@@ -220,6 +227,14 @@ public class QuestionServiceImpl implements QuestionService {
         if (q == null) throw new BizException(code);
         if (!q.isOwnedByBox(boxUserId)) throw new BizException(ErrorCodes.FORBIDDEN, "无权操作此问题");
         return q;
+    }
+
+    private void deleteAiReviewTarget(Long questionId) {
+        AiReviewView review = aiReviewService.getByQuestionId(questionId);
+        aiReviewService.deleteByQuestionId(questionId);
+        if (review != null && review.id() != null) {
+            likeService.deleteTarget(LikeTargetType.AI_REVIEW, review.id());
+        }
     }
 
     /** 构建已发布问题视图（含回答）。 */

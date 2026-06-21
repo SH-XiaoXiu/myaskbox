@@ -12,6 +12,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import cn.xiuxius.askbox.ai.entity.AiReviewEntity;
+import cn.xiuxius.askbox.ai.enums.AiReviewStatus;
+import cn.xiuxius.askbox.ai.repository.AiReviewRepository;
 import cn.xiuxius.askbox.answer.entity.AnswerEntity;
 import cn.xiuxius.askbox.answer.repository.AnswerRepository;
 import cn.xiuxius.askbox.common.BizException;
@@ -91,6 +94,7 @@ public class LikeServiceImpl implements LikeService {
     private final LikeCountRepository likeCountRepository;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
+    private final AiReviewRepository aiReviewRepository;
 
     @Value("${askbox.likes.cache-ttl-seconds:1800}")
     private long cacheTtlSeconds;
@@ -236,6 +240,14 @@ public class LikeServiceImpl implements LikeService {
                     yield false;
                 }
                 QuestionEntity question = questionRepository.findById(answer.getQuestionId());
+                yield question != null && question.getStatus() == QuestionStatus.PUBLISHED;
+            }
+            case AI_REVIEW -> {
+                AiReviewEntity review = aiReviewRepository.findById(targetId);
+                if (review == null || review.getStatus() != AiReviewStatus.SUCCEEDED) {
+                    yield false;
+                }
+                QuestionEntity question = questionRepository.findById(review.getQuestionId());
                 yield question != null && question.getStatus() == QuestionStatus.PUBLISHED;
             }
         };

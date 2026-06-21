@@ -34,6 +34,7 @@ import cn.xiuxius.askbox.topic.view.AdminTopicView;
 import cn.xiuxius.askbox.topic.view.PublicTopicView;
 import cn.xiuxius.askbox.topic.view.TopicSummaryView;
 import cn.xiuxius.askbox.topic.view.TopicView;
+import cn.xiuxius.askbox.usersetting.service.UserSettingService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -42,7 +43,6 @@ import lombok.RequiredArgsConstructor;
 public class TopicServiceImpl implements TopicService {
     private static final String CODE_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz";
     private static final int CODE_LENGTH = 10;
-    private static final int DEFAULT_ACTIVE_LIMIT = 5;
     private static final int MAX_DURATION_DAYS = 7;
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -50,6 +50,7 @@ public class TopicServiceImpl implements TopicService {
     private final BoxUserService boxUserService;
     private final QuestionRepository questionRepository;
     private final SysUserService sysUserService;
+    private final UserSettingService userSettingService;
 
     @Override
     @Transactional
@@ -210,9 +211,7 @@ public class TopicServiceImpl implements TopicService {
 
     private int topicActiveLimit(Long boxUserId) {
         BoxUserEntity box = boxUserService.getById(boxUserId);
-        SysUserEntity user = sysUserService.getById(box.getUserId());
-        Integer limit = user.getTopicActiveLimit();
-        return limit == null ? DEFAULT_ACTIVE_LIMIT : Math.max(1, limit);
+        return userSettingService.getTopicActiveLimit(box.getUserId());
     }
 
     private String parseAdminStatus(String status) {

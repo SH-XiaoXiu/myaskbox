@@ -12,4 +12,6 @@ public record BoxView(
         String displayName,
         String description,
         long questionCount,
+        Integer topicActiveLimit,
+        Boolean aiReviewEnabled,
         OffsetDateTime createdAt) {}

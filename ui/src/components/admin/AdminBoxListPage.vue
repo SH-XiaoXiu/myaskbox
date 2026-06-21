@@ -53,11 +53,17 @@ function handleScroll(event) {
 // ========== 编辑 ==========
 const showEditSheet = ref(false)
 const editingBox = ref(null)
-const editForm = ref({ slug: '', displayName: '', description: '' })
+const editForm = ref({ slug: '', displayName: '', description: '', topicActiveLimit: 5, aiReviewEnabled: false })
 
 function openEdit(box) {
   editingBox.value = box
-  editForm.value = { slug: box.slug, displayName: box.displayName, description: box.description || '' }
+  editForm.value = {
+    slug: box.slug,
+    displayName: box.displayName,
+    description: box.description || '',
+    topicActiveLimit: box.topicActiveLimit || 5,
+    aiReviewEnabled: Boolean(box.aiReviewEnabled),
+  }
   showEditSheet.value = true
 }
 
@@ -68,10 +74,14 @@ async function submitEdit() {
         slug: editForm.value.slug,
         displayName: editForm.value.displayName,
         description: editForm.value.description,
+        topicActiveLimit: Number(editForm.value.topicActiveLimit) || 5,
+        aiReviewEnabled: Boolean(editForm.value.aiReviewEnabled),
       })
       editingBox.value.slug = editForm.value.slug
       editingBox.value.displayName = editForm.value.displayName
       editingBox.value.description = editForm.value.description
+      editingBox.value.topicActiveLimit = Number(editForm.value.topicActiveLimit) || 5
+      editingBox.value.aiReviewEnabled = Boolean(editForm.value.aiReviewEnabled)
       showSuccessToast('已更新')
     } catch {}
   }
@@ -99,7 +109,7 @@ async function submitEdit() {
           <template #label>
             <div class="cell-label">
               <code class="slug-badge">{{ box.slug }}</code>
-              <span>{{ box.username }} · {{ formatTime(new Date(box.createdAt).getTime()) }}</span>
+              <span>{{ box.username }} · 话题上限 {{ box.topicActiveLimit || 5 }} · AI点评 {{ box.aiReviewEnabled ? '开启' : '关闭' }} · {{ formatTime(new Date(box.createdAt).getTime()) }}</span>
             </div>
           </template>
         </van-cell>
@@ -115,6 +125,12 @@ async function submitEdit() {
         <van-field v-model="editForm.slug" label="Slug" placeholder="URL 标识" />
         <van-field v-model="editForm.displayName" label="显示名" placeholder="提问箱名称" />
         <van-field v-model="editForm.description" label="描述" type="textarea" rows="3" placeholder="提问箱描述" autosize />
+        <van-field v-model.number="editForm.topicActiveLimit" label="话题上限" type="number" min="1" placeholder="默认 5" />
+        <van-cell title="AI点评" label="开启后新发布回答会自动生成点评">
+          <template #right-icon>
+            <van-switch v-model="editForm.aiReviewEnabled" size="22" />
+          </template>
+        </van-cell>
         <div class="sheet-form-btn">
           <van-button type="primary" round block @click="submitEdit">保存</van-button>
         </div>

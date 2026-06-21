@@ -25,4 +25,8 @@ public class BoxProfileUpdateRequest {
     private String backgroundObjectKey;
 
     private Boolean emailNotifyEnabled;
+
+    private Integer topicActiveLimit;
+
+    private Boolean aiReviewEnabled;
 }

@@ -5,6 +5,7 @@ import { showToast } from 'vant'
 import {
   changeLike,
   getAnonymousAvatars,
+  getAiReviewsBatch,
   getLikeCountsBatch,
   getPublicBoxProfile,
   getPublishedQA,
@@ -145,11 +146,17 @@ function likeStorageKey(targetType, targetId) {
 }
 
 function likeTargetId(qa, targetType) {
-  return targetType === 'QUESTION' ? qa?.id : qa?.answerId
+  if (targetType === 'QUESTION') return qa?.id
+  if (targetType === 'ANSWER') return qa?.answerId
+  if (targetType === 'AI_REVIEW') return qa?.aiReview?.id
+  return null
 }
 
 function likeCountField(targetType) {
-  return targetType === 'QUESTION' ? 'questionLikeCount' : 'answerLikeCount'
+  if (targetType === 'QUESTION') return 'questionLikeCount'
+  if (targetType === 'ANSWER') return 'answerLikeCount'
+  if (targetType === 'AI_REVIEW') return 'aiReviewLikeCount'
+  return ''
 }
 
 function isTargetLiked(qa, targetType) {
@@ -188,6 +195,7 @@ async function hydrateLikeCounts(items) {
   for (const item of items) {
     targets.push({ targetType: 'QUESTION', targetId: item.id })
     if (item.answerId) targets.push({ targetType: 'ANSWER', targetId: item.answerId })
+    if (item.aiReview?.id) targets.push({ targetType: 'AI_REVIEW', targetId: item.aiReview.id })
   }
   if (!targets.length) return
   try {
@@ -196,9 +204,25 @@ async function hydrateLikeCounts(items) {
     for (const item of items) {
       item.questionLikeCount = countMap.get(`QUESTION:${item.id}`) || 0
       item.answerLikeCount = item.answerId ? countMap.get(`ANSWER:${item.answerId}`) || 0 : 0
+      item.aiReviewLikeCount = item.aiReview?.id ? countMap.get(`AI_REVIEW:${item.aiReview.id}`) || 0 : 0
     }
   } catch (err) {
     console.warn('Failed to load like counts', err)
+  }
+}
+
+async function hydrateAiReviews(items) {
+  const questionIds = items.map((item) => item.id).filter(Boolean)
+  if (!questionIds.length) return
+  try {
+    const reviews = await getAiReviewsBatch(questionIds)
+    const reviewMap = new Map((reviews || []).map((review) => [review.questionId, review]))
+    for (const item of items) {
+      item.aiReview = reviewMap.get(item.id) || null
+      item.aiReviewLikeCount = 0
+    }
+  } catch (err) {
+    console.warn('Failed to load AI reviews', err)
   }
 }
 
@@ -546,12 +570,15 @@ async function loadPublishedQA(reset = false, token = loadRequestToken, { animat
       topic: q.topic,
       question: q.question,
       answer: q.answer,
+      aiReview: null,
       questionLikeCount: 0,
       answerLikeCount: 0,
+      aiReviewLikeCount: 0,
       ts: q.ts,
       time: formatTime(q.ts),
       motionIndex: index,
     }))
+    await hydrateAiReviews(items)
     await hydrateLikeCounts(items)
     qaRefreshing.value = reset && !animate
     publishedQA.value = reset ? items : [...publishedQA.value, ...items]
@@ -1136,6 +1163,31 @@ onBeforeUnmount(() => {
                   <img v-if="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" :src="avatarSrc(selectedQA.ownerAvatar || boxProfile.avatar)" alt="" />
                   <i v-else class="ri-question-answer-line" aria-hidden="true"></i>
                 </span>
+              </div>
+              <div
+                v-if="selectedQA.aiReview?.status === 'SUCCEEDED' && selectedQA.aiReview?.content"
+                class="chat-turn ai-review-turn detail-piece"
+                style="--detail-piece-delay: 244ms"
+              >
+                <span class="mini-avatar ai-review-avatar" aria-hidden="true">
+                  <i class="ri-sparkling-2-line"></i>
+                </span>
+                <div class="chat-message">
+                  <strong class="ai-review-label">AI点评</strong>
+                  <p class="detail-ai-review chat-bubble">{{ selectedQA.aiReview.content }}</p>
+                  <p class="ai-review-disclaimer">内容由AI生成，仅供娱乐</p>
+                  <button
+                    class="like-button"
+                    :class="{ liked: isTargetLiked(selectedQA, 'AI_REVIEW') }"
+                    type="button"
+                    :aria-label="isTargetLiked(selectedQA, 'AI_REVIEW') ? '取消点赞AI点评' : '点赞AI点评'"
+                    :disabled="isLikePending(selectedQA, 'AI_REVIEW')"
+                    @click="toggleLike('AI_REVIEW')"
+                  >
+                    <i :class="isTargetLiked(selectedQA, 'AI_REVIEW') ? 'ri-heart-fill' : 'ri-heart-line'" aria-hidden="true"></i>
+                    <span>{{ selectedQA.aiReviewLikeCount || 0 }}</span>
+                  </button>
+                </div>
               </div>
             </section>
           </article>
@@ -2250,6 +2302,11 @@ time,
   justify-content: flex-end;
 }
 
+.chat-detail .ai-review-turn {
+  justify-content: flex-start;
+  margin-top: 6px;
+}
+
 .chat-message {
   display: grid;
   justify-items: start;
@@ -2286,6 +2343,35 @@ time,
   background: var(--classic-primary);
   color: #fff;
   border-bottom-right-radius: 3px;
+}
+
+.ai-review-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff7d6, #e8f6ff);
+  color: #a16207;
+  font-size: 14px;
+}
+
+.ai-review-label {
+  color: #8a5a10;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.detail-ai-review {
+  background: linear-gradient(135deg, rgba(255, 247, 214, 0.92), rgba(232, 246, 255, 0.92));
+  color: #3f3422;
+  border: 1px solid rgba(161, 98, 7, 0.14);
+  border-bottom-left-radius: 3px;
+}
+
+.ai-review-disclaimer {
+  margin: 6px 0 0;
+  color: rgba(84, 70, 43, 0.62);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .like-button {

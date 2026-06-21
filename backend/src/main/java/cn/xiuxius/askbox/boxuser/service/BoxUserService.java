@@ -43,7 +43,9 @@ public interface BoxUserService {
             String description,
             String avatarObjectKey,
             String backgroundObjectKey,
-            Boolean emailNotifyEnabled);
+            Boolean emailNotifyEnabled,
+            Integer topicActiveLimit,
+            Boolean aiReviewEnabled);
 
     BoxUserEntity createBox(Long userId, String slug, String displayName, String description);
 }

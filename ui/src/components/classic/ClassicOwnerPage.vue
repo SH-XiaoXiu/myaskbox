@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLogoutConfirm } from '@/composables/useLogoutConfirm'
 import { formatTime } from '@/utils'
 import { assetSrc } from '@/utils/assets'
+import { getAiReviewsBatch } from '@/api/public'
 import ClassicAskBoxPage from '@/components/classic/ClassicAskBoxPage.vue'
 import ClassicHomePage from '@/components/classic/ClassicHomePage.vue'
 import ClassicQuestionList from '@/components/classic/ClassicQuestionList.vue'
@@ -190,14 +191,30 @@ async function loadHistory(status, reset = false) {
       topic: q.topic,
       question: q.question,
       answer: q.answer,
+      aiReview: null,
       ts: q.ts,
       time: formatTime(q.ts),
     }))
+    if (status === 'PUBLISHED') await hydrateAiReviews(items)
     target.value = reset ? items : [...target.value, ...items]
     s.page = page + 1
     s.hasMore = page < r.totalPages
   } finally {
     s.loading = false
+  }
+}
+
+async function hydrateAiReviews(items) {
+  const questionIds = items.map((item) => item.id).filter(Boolean)
+  if (!questionIds.length) return
+  try {
+    const reviews = await getAiReviewsBatch(questionIds)
+    const reviewMap = new Map((reviews || []).map((review) => [review.questionId, review]))
+    for (const item of items) {
+      item.aiReview = reviewMap.get(item.id) || null
+    }
+  } catch (err) {
+    console.warn('Failed to load AI reviews', err)
   }
 }
 
@@ -913,6 +930,14 @@ onBeforeUnmount(() => {
             <span>公开回答</span>
             <p>{{ selectedQuestion.answer }}</p>
           </section>
+          <section
+            v-if="selectedQuestion.aiReview?.status === 'SUCCEEDED' && selectedQuestion.aiReview?.content"
+            class="published-answer ai-review"
+          >
+            <span>AI锐评</span>
+            <p>{{ selectedQuestion.aiReview.content }}</p>
+            <small>内容由AI生成，仅供娱乐</small>
+          </section>
 
           <section v-else class="published-answer muted">
             <span>已驳回</span>
@@ -1569,5 +1594,10 @@ onBeforeUnmount(() => {
   font-size: 15px;
   line-height: 1.7;
   overflow-wrap: anywhere;
+}
+
+.published-answer small {
+  color: var(--classic-muted);
+  font-size: 11px;
 }
 </style>

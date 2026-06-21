@@ -29,7 +29,6 @@ public class SysUserEntity implements Serializable {
     private Long avatarAttachmentId;
 
     private String status;
-    private Integer topicActiveLimit;
     private OffsetDateTime lastLoginAt;
     private String lastLoginIp;
 

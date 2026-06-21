@@ -10,6 +10,9 @@ export const getPublicBoxProfile = (slug) => api.get(`/boxes/${slug}`)
 export const getPublishedQA = (slug, page = 1, pageSize = 10, topicCode = '') =>
   api.get(`/boxes/${slug}/questions`, { params: { page, pageSize, topicCode: topicCode || undefined } })
 
+/** POST /api/ai-reviews/batch */
+export const getAiReviewsBatch = (questionIds) => api.post('/ai-reviews/batch', { questionIds })
+
 /** POST /api/likes/batch */
 export const getLikeCountsBatch = (targets) => api.post('/likes/batch', { targets })
 

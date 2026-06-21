@@ -2,14 +2,12 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
-import { useAuthStore } from '@/stores/auth'
 import { getBoxProfile, getTopics, createTopic, closeTopic } from '@/api/owner'
 import ClassicTopicList from '@/components/classic/ClassicTopicList.vue'
 
 const router = useRouter()
-const auth = useAuthStore()
 
-const boxProfile = ref({ slug: '' })
+const boxProfile = ref({ slug: '', topicActiveLimit: 5 })
 const topics = ref([])
 const loading = ref(true)
 const saving = ref(false)
@@ -23,7 +21,7 @@ const draft = reactive({
   expiresAtLocal: '',
 })
 
-const activeLimit = computed(() => auth.user?.topicActiveLimit || 5)
+const activeLimit = computed(() => boxProfile.value.topicActiveLimit || 5)
 const topicStatusTabs = [
   { id: 'ACTIVE', label: '进行中', empty: '还没有进行中的话题' },
   { id: 'EXPIRED', label: '已到期', empty: '还没有已到期的话题' },
@@ -89,8 +87,8 @@ function closeCreateComposer({ force = false } = {}) {
 async function load() {
   loading.value = true
   try {
-    const [profile, rows] = await Promise.all([getBoxProfile(), getTopics(), auth.ensureUser()])
-    boxProfile.value = { slug: profile?.slug || '' }
+    const [profile, rows] = await Promise.all([getBoxProfile(), getTopics()])
+    boxProfile.value = { slug: profile?.slug || '', topicActiveLimit: profile?.topicActiveLimit || 5 }
     topics.value = rows || []
   } finally {
     loading.value = false

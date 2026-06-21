@@ -14,4 +14,6 @@ public record BoxProfileView(
         AttachmentView avatar,
         AttachmentView background,
         Boolean emailNotifyEnabled,
+        Integer topicActiveLimit,
+        Boolean aiReviewEnabled,
         OffsetDateTime createdAt) {}

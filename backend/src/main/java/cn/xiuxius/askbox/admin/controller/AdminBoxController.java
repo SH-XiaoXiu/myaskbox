@@ -56,6 +56,8 @@ public class AdminBoxController {
                 request.getDescription() == null ? "" : request.getDescription(),
                 request.getAvatarObjectKey(),
                 request.getBackgroundObjectKey(),
-                request.getEmailNotifyEnabled()));
+                request.getEmailNotifyEnabled(),
+                request.getTopicActiveLimit(),
+                request.getAiReviewEnabled()));
     }
 }
