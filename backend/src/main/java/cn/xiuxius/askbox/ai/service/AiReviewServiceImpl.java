@@ -10,11 +10,12 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
 import org.springframework.core.io.Resource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -158,13 +159,13 @@ public class AiReviewServiceImpl implements AiReviewService {
         reviewRepository.deleteByQuestionId(questionId);
     }
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onAnswerPublished(AnswerPublishedEvent event) {
         enqueueAuto(event.questionId());
     }
 
     @Async("askboxAiExecutor")
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onAiReviewQueued(AiReviewQueuedEvent event) {
         generate(event.questionId());
     }
@@ -172,6 +173,7 @@ public class AiReviewServiceImpl implements AiReviewService {
     public void generate(Long questionId) {
         AiReviewEntity review = reviewRepository.findByQuestionId(questionId);
         if (review == null) {
+            log.warn("AI review queued but review record not found: questionId={}", questionId);
             return;
         }
         try {
@@ -243,6 +245,9 @@ public class AiReviewServiceImpl implements AiReviewService {
         if (existing != null
                 && !overwrite
                 && (existing.getStatus() == AiReviewStatus.PENDING || existing.getStatus() == AiReviewStatus.RUNNING)) {
+            if (existing.getStatus() == AiReviewStatus.PENDING) {
+                eventPublisher.publishEvent(new AiReviewQueuedEvent(question.getId()));
+            }
             return existing;
         }
         OffsetDateTime now = now();
