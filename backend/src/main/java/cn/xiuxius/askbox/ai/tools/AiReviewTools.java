@@ -31,7 +31,7 @@ public class AiReviewTools {
     private final AiBoxProfileRepository profileRepository;
     private final AiReviewRepository reviewRepository;
 
-    @Tool(description = "获取当前要点评的问答上下文，包括问题、回答、箱主信息和话题ID。")
+    @Tool(description = "获取当前要点评的问答上下文。一楼是匿名提问者消息，二楼是箱主回复，AI只能生成三楼网友跟帖。")
     public CurrentQaContext getCurrentQaContext(@ToolParam(description = "当前问题ID") Long questionId) {
         QuestionEntity question = questionRepository.findById(questionId);
         if (question == null || question.getStatus() != QuestionStatus.PUBLISHED) {
@@ -46,11 +46,13 @@ public class AiReviewTools {
                 box == null ? null : box.getSlug(),
                 question.getTopicId(),
                 question.getQuestion(),
+                question.getQuestion(),
                 answer == null ? null : answer.getId(),
+                answer == null ? null : answer.getContent(),
                 answer == null ? null : answer.getContent());
     }
 
-    @Tool(description = "获取当前箱主的相关历史公开问答，优先同箱主近期内容，用来参考语气和上下文。")
+    @Tool(description = "获取当前箱主的相关历史公开问答。一楼是匿名提问者消息，二楼是箱主回复，用来参考语气和上下文。")
     public List<HistoricalQa> getRelevantHistoricalQa(@ToolParam(description = "当前问题ID") Long questionId) {
         QuestionEntity question = questionRepository.findById(questionId);
         if (question == null) {
@@ -69,7 +71,12 @@ public class AiReviewTools {
                         return null;
                     }
                     return new HistoricalQa(
-                            candidate.getId(), candidate.getTopicId(), candidate.getQuestion(), answer.getContent());
+                            candidate.getId(),
+                            candidate.getTopicId(),
+                            candidate.getQuestion(),
+                            candidate.getQuestion(),
+                            answer.getContent(),
+                            answer.getContent());
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
@@ -110,11 +117,14 @@ public class AiReviewTools {
             String boxDisplayName,
             String boxSlug,
             Long topicId,
+            String askerMessage,
             String question,
             Long answerId,
+            String boxOwnerReply,
             String answer) {}
 
-    public record HistoricalQa(Long questionId, Long topicId, String question, String answer) {}
+    public record HistoricalQa(
+            Long questionId, Long topicId, String askerMessage, String question, String boxOwnerReply, String answer) {}
 
     public record BoxStyleProfile(Long boxUserId, String styleSummary, int sampleCount, int version) {}
 
