@@ -65,6 +65,7 @@ public class AiReviewServiceImpl implements AiReviewService {
     private final ApplicationEventPublisher eventPublisher;
     private final Resource systemPromptResource;
     private final Resource userPromptResource;
+    private final java.nio.file.Path promptDirectory;
 
     public AiReviewServiceImpl(
             AiProperties properties,
@@ -99,6 +100,7 @@ public class AiReviewServiceImpl implements AiReviewService {
         this.eventPublisher = eventPublisher;
         this.systemPromptResource = systemPromptResource;
         this.userPromptResource = userPromptResource;
+        this.promptDirectory = java.nio.file.Path.of(properties.getPromptDirectory());
     }
 
     @Override
@@ -189,9 +191,9 @@ public class AiReviewServiceImpl implements AiReviewService {
             review.setStatus(AiReviewStatus.RUNNING).setErrorMessage(null).setUpdatedAt(now());
             reviewRepository.update(review);
             long startedAt = System.nanoTime();
-            String systemPrompt = prompt(systemPromptResource);
-            String userPrompt =
-                    prompt(userPromptResource).replace("{questionId}", String.valueOf(review.getQuestionId()));
+            String systemPrompt = prompt("ai-review-system.md", systemPromptResource);
+            String userPrompt = prompt("ai-review-user.md", userPromptResource)
+                    .replace("{questionId}", String.valueOf(review.getQuestionId()));
             String requestPayload = requestPayload(systemPrompt, userPrompt);
             String content = chatClient
                     .prompt()
@@ -365,11 +367,19 @@ public class AiReviewServiceImpl implements AiReviewService {
         return OffsetDateTime.now(ZoneOffset.UTC);
     }
 
-    private String prompt(Resource resource) {
+    private String prompt(String filename, Resource fallbackResource) {
+        java.nio.file.Path externalPrompt = promptDirectory.resolve(filename).normalize();
+        if (java.nio.file.Files.isRegularFile(externalPrompt)) {
+            try {
+                return java.nio.file.Files.readString(externalPrompt, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException ex) {
+                throw new IllegalStateException("读取外部AI提示词失败: " + externalPrompt, ex);
+            }
+        }
         try {
-            return resource.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            return fallbackResource.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         } catch (java.io.IOException ex) {
-            throw new IllegalStateException("读取AI提示词失败: " + resource.getFilename(), ex);
+            throw new IllegalStateException("读取内置AI提示词失败: " + fallbackResource.getFilename(), ex);
         }
     }
 

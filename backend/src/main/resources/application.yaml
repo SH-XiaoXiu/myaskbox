@@ -107,6 +107,7 @@ askbox.ai:
   base-url: ${AI_BASE_URL:https://api.openai.com/v1}
   api-key: ${AI_API_KEY:}
   model: ${AI_MODEL:gpt-4.1-mini}
+  prompt-directory: ${AI_PROMPT_DIRECTORY:prompts}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:60}
   history-candidate-limit: ${AI_HISTORY_CANDIDATE_LIMIT:12}
   popular-example-limit: ${AI_POPULAR_EXAMPLE_LIMIT:8}

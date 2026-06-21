@@ -11,6 +11,7 @@ public class AiProperties {
     private String baseUrl = "https://api.openai.com/v1";
     private String apiKey = "";
     private String model = "gpt-4.1-mini";
+    private String promptDirectory = "prompts";
     private int timeoutSeconds = 60;
     private int historyCandidateLimit = 12;
     private int popularExampleLimit = 8;
