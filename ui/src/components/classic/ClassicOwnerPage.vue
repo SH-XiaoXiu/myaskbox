@@ -663,7 +663,7 @@ onBeforeUnmount(() => {
 <template>
   <main class="classic-owner classic-page classic-enter">
     <router-view />
-    <van-nav-bar fixed placeholder safe-area-inset-top>
+    <van-nav-bar safe-area-inset-top>
       <template #title>
         <span class="nav-title">{{ pageTitle }}</span>
       </template>
@@ -808,7 +808,7 @@ onBeforeUnmount(() => {
       </van-tabbar>
     </section>
 
-    <van-popup v-model:show="accountSheetOpen" round position="bottom" :style="{ maxHeight: '82vh' }">
+    <van-popup v-model:show="accountSheetOpen" round position="bottom" :style="{ maxHeight: '82dvh' }">
       <section class="settings-sheet">
         <header class="sheet-head">
           <h2>账号资料</h2>
@@ -844,7 +844,7 @@ onBeforeUnmount(() => {
       </section>
     </van-popup>
 
-    <van-popup v-model:show="emailSheetOpen" round position="bottom" :style="{ maxHeight: '72vh' }">
+    <van-popup v-model:show="emailSheetOpen" round position="bottom" :style="{ maxHeight: '72dvh' }">
       <section class="settings-sheet">
         <header class="sheet-head">
           <h2>更换邮箱</h2>
@@ -867,7 +867,7 @@ onBeforeUnmount(() => {
       </section>
     </van-popup>
 
-    <van-popup v-model:show="boxSettingsOpen" round position="bottom" :style="{ maxHeight: '82vh' }">
+    <van-popup v-model:show="boxSettingsOpen" round position="bottom" :style="{ maxHeight: '82dvh' }">
       <section class="settings-sheet">
         <header class="sheet-head">
           <h2>提问箱设置</h2>
@@ -898,7 +898,12 @@ onBeforeUnmount(() => {
       </section>
     </van-popup>
 
-    <van-popup v-model:show="detailOpen" round position="bottom" :style="{ height: 'min(72vh, 560px)' }">
+    <van-popup
+      v-model:show="detailOpen"
+      round
+      class="detail-popup"
+      :style="{ width: 'min(92vw, 520px)', height: 'min(72dvh, 560px)' }"
+    >
       <article v-if="selectedQuestion" class="detail-panel">
         <header class="detail-head">
           <div>
@@ -963,7 +968,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .classic-owner {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+  height: 100svh;
   height: 100dvh;
   overflow: hidden;
 }
@@ -1030,9 +1038,9 @@ onBeforeUnmount(() => {
 .owner-body {
   position: relative;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: calc(100vh - 46px);
-  height: calc(100dvh - 46px);
+  min-height: 0;
   overflow: hidden;
   padding: 0;
 }
@@ -1042,7 +1050,7 @@ onBeforeUnmount(() => {
   inset: 12px 14px calc(52px + env(safe-area-inset-bottom));
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 0 4px;
+  padding: 8px 0 4px;
   opacity: 0;
   pointer-events: none;
   transform: translate3d(0, 0, 0) scale(0.985);
@@ -1292,8 +1300,14 @@ onBeforeUnmount(() => {
 }
 
 .owner-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 6;
   flex: 0 0 auto;
+  border: 1px solid rgba(226, 232, 240, 0.88);
   border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
   overflow: hidden;
 }
 
@@ -1318,8 +1332,12 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 12px 0 4px;
+  padding: 0 0 4px;
   overscroll-behavior: contain;
+}
+
+.question-list:deep(.classic-animated-list__inner) {
+  padding-top: 8px;
 }
 
 .mini-avatar {
@@ -1367,7 +1385,7 @@ onBeforeUnmount(() => {
 .settings-sheet {
   display: grid;
   gap: 14px;
-  max-height: 88vh;
+  max-height: 88dvh;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
@@ -1491,13 +1509,17 @@ onBeforeUnmount(() => {
   opacity: 0.6;
 }
 
+.detail-popup {
+  overflow: hidden;
+}
+
 .detail-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 18px 16px calc(14px + env(safe-area-inset-bottom));
+  padding: 18px 16px max(34px, calc(14px + env(safe-area-inset-bottom)));
 }
 
 .detail-head {
@@ -1562,6 +1584,8 @@ onBeforeUnmount(() => {
 }
 
 .detail-actions {
+  position: sticky;
+  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1569,6 +1593,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex: 0 0 auto;
   padding-top: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), #fff 38%);
   border-top: 1px solid rgba(228, 231, 236, 0.82);
   color: var(--classic-muted);
   font-size: 12px;

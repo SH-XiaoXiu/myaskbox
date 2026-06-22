@@ -1451,12 +1451,11 @@ onBeforeUnmount(() => {
 }
 
 .classic-ask.is-embedded .ask-head {
-  top: 0;
-  width: 100%;
+  display: none;
 }
 
 .classic-ask.is-embedded .ask-scroll {
-  padding-top: 104px;
+  padding-top: 0;
 }
 
 .ask-scroll::-webkit-scrollbar {
@@ -1475,11 +1474,19 @@ onBeforeUnmount(() => {
 
 .ask-list {
   min-height: 0;
-  padding: 2px 0 calc(92px + env(safe-area-inset-bottom));
+  padding: 2px 0 12px;
   transition:
     opacity 220ms ease,
     transform 280ms var(--classic-ease),
     filter 260ms ease;
+}
+
+.classic-ask.has-composer .ask-list {
+  padding-bottom: calc(68px + env(safe-area-inset-bottom));
+}
+
+.classic-ask.is-embedded .ask-list {
+  padding-bottom: 4px;
 }
 
 .ask-list.is-detail-muted {
